@@ -6,7 +6,7 @@
 - [ ] Make sure the repository is public, so `PRIVACY.md` has a public URL.
 - [ ] Work through the manual checks below.
 
-To rename the extension, update `name`, `short_name` and `action.default_title` in `src/manifest.json`, the `<title>` in `src/panel/panel.html`, `name` in `package.json`, and the text in `README.md`, `PRIVACY.md`, `store/LISTING.md` and `scripts/make-store-assets.py`.
+To rename the extension, update `name`, `short_name` and `action.default_title` in `src/manifest.json`, the `<title>` in `src/panel/panel.html`, `name` in `package.json`, and the text in `README.md`, `PRIVACY.md` and `store/LISTING.md`.
 
 ## Manual checks
 

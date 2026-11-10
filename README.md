@@ -2,6 +2,8 @@
 
 A Chrome extension that shows the page in your current tab at phone size, in the side panel, while you keep working on the desktop version. It follows the tab as you navigate, so a change that breaks the mobile layout is visible the moment you make it.
 
+![Sidephone showing a page at phone size in the side panel, next to the desktop version](store/assets/screenshot-1.png)
+
 It is built for local development: `localhost` works as soon as it is installed. Any other site is off until you turn it on.
 
 ## What it does
@@ -100,10 +102,6 @@ python3 tests/browser/test_extension.py dist/extension
 Extensions need a headed browser. On a machine without a display, prefix the command with `xvfb-run -a`.
 
 Two things cannot be automated and need a manual check before a release: opening the real side panel from the toolbar icon, and Chrome's permission prompt for a new site. See [store/SUBMISSION.md](store/SUBMISSION.md).
-
-### Store assets
-
-`python3 scripts/make-store-assets.py` rebuilds the store screenshots and promo tiles in `store/assets`. It captures the extension running against the demo page in `store/demo-site` and draws a browser window around the captures. It needs Playwright and Pillow, and `xvfb-run -a` in front on a machine without a display.
 
 ### Icons
 
