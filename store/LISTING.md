@@ -33,7 +33,7 @@ WHAT YOU GET
 
 • A live phone-sized copy of your page that follows your tab as you navigate and reload
 • Real responsive behavior: media queries, matchMedia and JavaScript-measured layouts respond to the device's width
-• The same device list as Chrome DevTools: iPhone, Pixel, Galaxy, foldables, iPad, Surface and more
+• The same device list as Chrome DevTools, from small phones to tablets and foldables
 • A device frame with rounded corners, camera cutout, status bar and browser bars, so you see how much room your page really has
 • An on-screen keyboard that appears when you focus a text field, to show what it would cover
 • Scroll sync, so the mobile view follows the desktop one
