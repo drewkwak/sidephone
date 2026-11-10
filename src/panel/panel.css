@@ -1,0 +1,1084 @@
+:root {
+  color-scheme: light dark;
+  --stage: #f4f4f5;
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --fg: #1b1c1e;
+  --muted: #6c7078;
+  --line: rgba(0, 0, 0, 0.09);
+  --hover: rgba(0, 0, 0, 0.05);
+  --active: rgba(0, 0, 0, 0.08);
+  --control: rgba(0, 0, 0, 0.045);
+  --accent: #0a5cff;
+  --accent-soft: rgba(10, 92, 255, 0.12);
+  --bar: #f2f2f7;
+  --pill: #e3e3e9;
+  --body-edge: #1d1d20;
+  --bad: #d1372d;
+  --pop:
+    0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 3px 8px rgba(0, 0, 0, 0.07), 0 14px 32px rgba(0, 0, 0, 0.13);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 14px 40px rgba(0, 0, 0, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --stage: #0d0e0f;
+    --surface: #151618;
+    --raised: #1c1d20;
+    --fg: #ededee;
+    --muted: #8a8f98;
+    --line: rgba(255, 255, 255, 0.09);
+    --hover: rgba(255, 255, 255, 0.06);
+    --active: rgba(255, 255, 255, 0.1);
+    --control: rgba(255, 255, 255, 0.055);
+    --accent: #3d8bff;
+    --accent-soft: rgba(61, 139, 255, 0.18);
+    --bar: #1c1c1e;
+    --pill: #2c2c30;
+    --body-edge: rgba(255, 255, 255, 0.13);
+    --bad: #ff7a70;
+    --pop:
+      0 0 0 0.5px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.5);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 44px rgba(0, 0, 0, 0.55);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  font:
+    12.5px/1.4 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  letter-spacing: -0.003em;
+  color: var(--fg);
+  background: var(--stage);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- toolbar ---------- */
+
+#toolbar {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 40px;
+  padding: 0 6px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+#device-btn {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 6px 0 7px;
+  font-weight: 500;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+#device-btn svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+#device-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#device-btn:hover {
+  background: var(--hover);
+}
+
+#device-btn[aria-expanded="true"] {
+  background: var(--active);
+}
+
+#readout,
+#scale {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+#readout {
+  margin-left: 6px;
+}
+
+#scale {
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 17px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+#scale:empty {
+  display: none;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.icon-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  color: var(--fg);
+  background: var(--hover);
+}
+
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: none;
+}
+
+.icon-btn[aria-expanded="true"] {
+  color: var(--fg);
+  background: var(--active);
+}
+
+.icon-btn:has(input:checked) {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.icon-btn:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 380px) {
+  #scale {
+    display: none;
+  }
+}
+
+@media (max-width: 330px) {
+  #readout {
+    display: none;
+  }
+}
+
+/* Loading: a hairline under the toolbar. */
+#progress {
+  position: relative;
+  z-index: 5;
+  flex: 0 0 auto;
+  height: 1.5px;
+  margin-top: -1.5px;
+  overflow: hidden;
+}
+
+body.loading #progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: var(--accent);
+  animation: slide 1s ease-in-out infinite;
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.loading #progress::after {
+    width: 100%;
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ---------- menus (device list and view options) ---------- */
+
+.menu {
+  position: absolute;
+  top: 42px;
+  z-index: 10;
+  max-height: calc(100vh - 52px);
+  overflow: auto;
+  padding: 4px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: var(--pop);
+  scrollbar-width: thin;
+  animation: menu-in 0.12s ease-out;
+}
+
+.menu[hidden] {
+  display: none;
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu {
+    animation: none;
+  }
+}
+
+#device-menu {
+  left: 6px;
+  width: min(264px, calc(100vw - 12px));
+}
+
+#settings {
+  right: 6px;
+  width: min(248px, calc(100vw - 12px));
+}
+
+.menu-label {
+  padding: 7px 8px 3px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 26px;
+  padding: 0 6px 0 8px;
+  text-align: left;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.item:hover,
+.item:focus-visible {
+  outline: none;
+  background: var(--hover);
+}
+
+/* Long device names shorten; they never wrap or squeeze the size. */
+.item > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item .dims {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  margin-left: auto;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.item .check {
+  flex: 0 0 14px;
+  color: var(--accent);
+  visibility: hidden;
+}
+
+.item[aria-selected="true"] .check {
+  visibility: visible;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 5px;
+}
+
+label.row {
+  cursor: pointer;
+}
+
+label.row:hover {
+  background: var(--hover);
+}
+
+.sep {
+  height: 1px;
+  margin: 4px -4px;
+  background: var(--line);
+}
+
+.switch {
+  appearance: none;
+  flex: 0 0 auto;
+  position: relative;
+  width: 26px;
+  height: 15px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--active);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+  transition: background 0.14s;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.14s;
+}
+
+.switch:checked {
+  background: var(--accent);
+  box-shadow: none;
+}
+
+.switch:checked::after {
+  transform: translateX(11px);
+}
+
+.switch:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.segmented {
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--control);
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented span {
+  display: block;
+  min-width: 28px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.segmented span:hover {
+  color: var(--fg);
+}
+
+.segmented input:checked + span {
+  color: var(--fg);
+  background: var(--raised);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.segmented input:focus-visible + span {
+  outline: 2px solid var(--accent);
+}
+
+.segmented input:disabled + span {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ghost-btn {
+  flex: 0 0 auto;
+  height: 24px;
+  padding: 0 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--fg);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.ghost-btn:hover {
+  background: var(--hover);
+}
+
+.ghost-btn.primary {
+  color: #fff;
+  background: #0a5cff;
+  border-color: transparent;
+}
+
+.ghost-btn.primary:hover {
+  background: #084de0;
+}
+
+#cal-note {
+  font-size: 11.5px;
+}
+
+body.popout #popout,
+body.popout #zoom-row,
+body.popout #cal-row {
+  display: none;
+}
+
+/* ---------- notice on the stage ---------- */
+
+#status {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 6px 10px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--pop);
+}
+
+#status[hidden],
+#status-action[hidden],
+#site-enable[hidden] {
+  display: none;
+}
+
+#status.bad {
+  padding-left: 24px;
+}
+
+#status.bad::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+
+/* Offer to mirror the site in the main tab. */
+#site-notice {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 5px 5px 5px 10px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--pop);
+}
+
+#site-notice[hidden],
+#site-row[hidden],
+#site-row[hidden] + .sep {
+  display: none;
+}
+
+#site-notice-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+#site-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- calibration: covers the stage ---------- */
+
+#calibrate {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 16px;
+  overflow: auto;
+  background: var(--stage);
+}
+
+#calibrate[hidden] {
+  display: none;
+}
+
+#calibrate p {
+  max-width: 280px;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+#cal-card {
+  flex: 0 0 auto;
+  border: 1.5px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+#cal-slider {
+  width: min(260px, 100%);
+  accent-color: var(--accent);
+}
+
+.cal-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.cal-actions .ghost-btn {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+
+/* ---------- stage and device ---------- */
+
+#stage {
+  flex: 1;
+  min-height: 0;
+  overflow: clip; /* clip, not hidden: nothing may scroll this, not even a script */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+#device {
+  flex: 0 0 auto;
+}
+
+#shell {
+  position: relative;
+  transform-origin: 0 0;
+}
+
+#shell.boxed {
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/* The phone's body. A thin outer ring gives it an edge against a dark stage;
+   drawn outside the body so it stays smooth around the corners. */
+#shell.framed {
+  background: #08080a;
+  box-shadow:
+    0 0 0 1px var(--body-edge),
+    var(--shadow);
+}
+
+#screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: clip; /* clip, not hidden: nothing may scroll this, not even a script */
+  /* Black like an unlit display, so the anti-aliased edge of the rounded
+     corners blends into the body. A lighter colour shows as a pale outline. */
+  background: #000;
+}
+
+#frame {
+  display: block;
+  flex: 0 0 auto;
+  border: 0;
+  background: #fff;
+}
+
+.bar {
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+  overflow: clip; /* clip, not hidden: nothing may scroll this, not even a script */
+  background: var(--bar);
+}
+
+/* The top bar takes the page's colour, like a phone browser does. Ink and
+   address field adapt to whether that colour is light or dark. */
+#bar-top {
+  --ink: #000;
+  --field: rgba(118, 118, 128, 0.14);
+  color: var(--ink);
+}
+
+#bar-top.on-dark {
+  --ink: #fff;
+  --field: rgba(235, 235, 245, 0.18);
+}
+
+#bar-top .pill {
+  color: var(--ink);
+  background: var(--field);
+}
+
+#statusbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+#statusbar[hidden] {
+  display: none;
+}
+
+/* Browser toolbar on phones that have one under the page (iPhone SE). */
+.browser-tools {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 10px;
+  color: #007aff;
+}
+
+.browser-tools[hidden] {
+  display: none;
+}
+
+#bar-bottom.tools {
+  padding-top: 0;
+  align-items: stretch;
+  border-top: 1px solid rgba(60, 60, 67, 0.18);
+}
+
+.bar[hidden],
+.pill[hidden],
+.indicator[hidden],
+#cutout[hidden],
+#home-button[hidden] {
+  display: none;
+}
+
+#bar-top {
+  align-items: flex-end;
+  padding-bottom: 6px;
+}
+
+#bar-bottom {
+  align-items: flex-start;
+  padding-top: 6px;
+}
+
+.pill {
+  width: 88%;
+  max-width: 460px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--pill);
+  font-size: 14px;
+  line-height: 36px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.indicator {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 134px;
+  height: 5px;
+  margin-left: -67px;
+  border-radius: 3px;
+  background: var(--fg);
+  opacity: 0.8;
+}
+
+#cutout {
+  position: absolute;
+  z-index: 4; /* hardware: stays above the keyboard too */
+  border-radius: 999px;
+  background: #000;
+  pointer-events: none;
+}
+
+#keyboard {
+  --kb-bg: #d1d3d9;
+  --kb-key: #ffffff;
+  --kb-fn: #abb1bb;
+  --kb-ink: #000000;
+  --kb-shadow: #898a8d;
+  --kb-line: rgba(0, 0, 0, 0.16);
+  --kb-icon: #50555c;
+  --kb-radius: 5px;
+  --kb-gap-x: 6px;
+  --kb-gap-y: 11px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  color: var(--kb-ink);
+  background: var(--kb-bg);
+  user-select: none;
+  visibility: hidden;
+  transform: translateY(100%);
+  transition:
+    transform 0.25s ease,
+    visibility 0s 0.25s;
+}
+
+#keyboard.open {
+  visibility: visible;
+  transform: none;
+  transition: transform 0.25s ease;
+}
+
+#keyboard.android {
+  --kb-bg: #eef1f6;
+  --kb-fn: #d3d9e3;
+  --kb-shadow: transparent;
+  --kb-radius: 6px;
+  --kb-gap-y: 10px;
+  font-family: Roboto, system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  #keyboard {
+    --kb-bg: #2a2a2c;
+    --kb-key: #6a6a6d;
+    --kb-fn: #464648;
+    --kb-ink: #ffffff;
+    --kb-shadow: #121213;
+    --kb-line: rgba(255, 255, 255, 0.18);
+    --kb-icon: #d2d2d6;
+  }
+
+  #keyboard.android {
+    --kb-bg: #1f2023;
+    --kb-key: #3d4045;
+    --kb-fn: #2d2f33;
+    --kb-shadow: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #keyboard,
+  #keyboard.open {
+    transition: none;
+  }
+}
+
+/* Suggestion strip above the keys. */
+.kb-suggest {
+  flex: 0 0 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 3px;
+}
+
+.kb-suggest span {
+  flex: 1;
+  height: 24px;
+  font-size: 16px;
+  line-height: 24px;
+  text-align: center;
+}
+
+.kb-suggest span + span {
+  border-left: 1px solid var(--kb-line);
+}
+
+#keyboard.android .kb-suggest {
+  flex-basis: 40px;
+}
+
+#keyboard.landscape .kb-suggest {
+  flex-basis: 34px;
+}
+
+/* Letter keys. --kw is the width of one letter key: ten across, with gaps. */
+.kb-keys {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kb-gap-y);
+  padding: 6px 3px 3px;
+}
+
+#keyboard.landscape .kb-keys {
+  gap: 7px;
+  padding-top: 3px;
+}
+
+.kb-row {
+  --kw: calc((100% - 9 * var(--kb-gap-x)) / 10);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  gap: var(--kb-gap-x);
+}
+
+.kb-gap {
+  flex: 1;
+}
+
+.key {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--kb-radius);
+  background: var(--kb-key);
+  box-shadow: 0 1px 0 var(--kb-shadow);
+}
+
+.key.letter {
+  flex: 0 0 var(--kw);
+  padding-bottom: 2px;
+  font-size: 22.5px;
+}
+
+#keyboard.landscape .key.letter {
+  font-size: 19px;
+}
+
+.key.fn {
+  background: var(--kb-fn);
+}
+
+.key.side {
+  flex: 0 0 calc(var(--kw) * 1.25 + 2px);
+}
+
+.key.word {
+  flex: 0 0 calc(var(--kw) * 2.5 + var(--kb-gap-x));
+  font-size: 16px;
+}
+
+.key.space {
+  flex: 1;
+  font-size: 16px;
+}
+
+.key.sym {
+  flex: 0 0 calc(var(--kw) * 1.5 + 3px);
+  font-size: 15px;
+}
+
+.key.enter {
+  flex: 0 0 calc(var(--kw) * 1.5 + 3px);
+  border-radius: 999px;
+  color: #fff;
+  background: #1a73e8;
+  box-shadow: none;
+}
+
+/* Number pad. */
+.kb-pad {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 7px 6px;
+  padding: 6px 6px 3px;
+}
+
+.key.digit {
+  flex-direction: column;
+  line-height: 1;
+}
+
+.key.digit b {
+  font-size: 25px;
+  font-weight: 400;
+}
+
+.key.digit small {
+  height: 12px;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+#keyboard.android .key.digit small,
+#keyboard.landscape .key.digit small {
+  display: none;
+}
+
+.key.bare {
+  background: none;
+  box-shadow: none;
+}
+
+/* Area under the keys: emoji and dictation on iPhone, then the swipe bar. */
+.kb-foot {
+  flex: 0 0 3px;
+  position: relative;
+}
+
+.kb-foot span {
+  display: none;
+}
+
+#keyboard.has-foot.ios .kb-foot {
+  flex-basis: 78px;
+}
+
+#keyboard.has-foot.android .kb-foot {
+  flex-basis: 22px;
+}
+
+#keyboard.has-foot.ios .kb-foot span {
+  display: block;
+  position: absolute;
+  top: 12px;
+  color: var(--kb-icon);
+}
+
+#keyboard.has-foot.ios .kb-foot span:first-child {
+  left: 26px;
+}
+
+#keyboard.has-foot.ios .kb-foot span:last-child {
+  right: 26px;
+}
+
+#keyboard.has-foot .kb-foot::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 134px;
+  height: 5px;
+  margin-left: -67px;
+  border-radius: 3px;
+  background: var(--kb-ink);
+}
+
+#home-button {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1.5px solid #3c3c42;
+}

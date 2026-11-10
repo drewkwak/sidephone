@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Sidephone - See mobile and desktop side by side",
+  "short_name": "Sidephone",
+  "version": "1.0.1",
+  "description": "Your page at phone size in the side panel, next to the desktop version. Follows your tab as you work. Built for local development.",
+  "minimum_chrome_version": "116",
+  "incognito": "split",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Open Sidephone",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "panel/panel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["sidePanel", "activeTab", "scripting", "declarativeNetRequestWithHostAccess"],
+  "host_permissions": ["*://localhost/*", "*://*.localhost/*", "*://127.0.0.1/*"],
+  "optional_host_permissions": ["*://*/*"],
+  "content_scripts": [
+    {
+      "matches": ["*://localhost/*", "*://*.localhost/*", "*://127.0.0.1/*"],
+      "js": ["content.js"],
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ]
+}

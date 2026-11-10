@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <!-- Two screens standing side by side: the desktop page and, in colour, the phone. -->
+  <defs>
+    <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b1d22"/>
+      <stop offset="1" stop-color="#0c0d10"/>
+    </linearGradient>
+    <linearGradient id="phone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4c94ff"/>
+      <stop offset="1" stop-color="#0a5cff"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="22" fill="url(#ground)"/>
+  <rect x="0.75" y="0.75" width="94.5" height="94.5" rx="21.25" fill="none" stroke="#fff" stroke-opacity="0.09" stroke-width="1.5"/>
+  <rect x="15" y="39" width="38" height="32" rx="7" fill="#fff" fill-opacity="0.22"/>
+  <rect x="59" y="25" width="22" height="46" rx="7" fill="url(#phone)"/>
+</svg>

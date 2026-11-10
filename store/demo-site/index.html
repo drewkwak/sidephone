@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Fernway</title>
+    <!-- A made-up budgeting app, used only as the page shown in the store screenshots. -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f5f1;
+        --card: #ffffff;
+        --ink: #1d1f1c;
+        --muted: #6f746c;
+        --line: #e6e4dc;
+        --accent: #1f7a5a;
+        --accent-soft: #e2f1ea;
+        --warm: #e0884a;
+        --bar: #cfe6da;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #121412;
+          --card: #1b1e1b;
+          --ink: #eceee9;
+          --muted: #979d93;
+          --line: #2a2e2a;
+          --accent: #4fc296;
+          --accent-soft: #1d3329;
+          --warm: #f0a36c;
+          --bar: #2a4a3c;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          14px/1.45 Inter,
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        color: var(--ink);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+      svg {
+        display: block;
+      }
+
+      .app {
+        display: grid;
+        grid-template-columns: 196px 1fr;
+        min-height: 100vh;
+      }
+
+      /* ----- sidebar (desktop) ----- */
+      .side {
+        padding: 20px 14px;
+        border-right: 1px solid var(--line);
+        background: var(--card);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 8px 18px;
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: -0.01em;
+      }
+      .brand i {
+        width: 22px;
+        height: 22px;
+        border-radius: 7px 7px 7px 2px;
+        background: var(--accent);
+      }
+      .nav a {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px;
+        border-radius: 8px;
+        color: var(--muted);
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .nav a.on {
+        color: var(--ink);
+        background: var(--bg);
+      }
+      .nav svg {
+        width: 17px;
+        height: 17px;
+      }
+      .side .plan {
+        margin-top: 26px;
+        padding: 12px;
+        border-radius: 10px;
+        background: var(--accent-soft);
+        font-size: 12.5px;
+      }
+      .side .plan b {
+        display: block;
+        margin-bottom: 2px;
+      }
+
+      /* ----- main ----- */
+      main {
+        padding: 22px 26px 40px;
+        min-width: 0;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      .top h1 {
+        font-size: 22px;
+        letter-spacing: -0.02em;
+      }
+      .top .range {
+        margin-left: auto;
+        padding: 6px 11px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        color: var(--muted);
+        background: var(--card);
+        font-size: 13px;
+      }
+      .btn {
+        padding: 7px 13px;
+        border: 0;
+        border-radius: 8px;
+        font: inherit;
+        font-weight: 600;
+        color: #fff;
+        background: var(--accent);
+      }
+      @media (prefers-color-scheme: dark) {
+        .btn {
+          color: #0d1a14;
+        }
+      }
+      .avatar {
+        display: none;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--warm);
+      }
+
+      .card {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--card);
+      }
+      .card h2 {
+        margin-bottom: 12px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      .stat small {
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .stat b {
+        display: block;
+        margin: 3px 0 2px;
+        font-size: 24px;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .stat span {
+        font-size: 12.5px;
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .stat span.up {
+        color: var(--warm);
+      }
+
+      .cols {
+        display: grid;
+        grid-template-columns: 1.55fr 1fr;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      .chart {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        height: 132px;
+      }
+      .chart i {
+        flex: 1;
+        border-radius: 5px 5px 2px 2px;
+        background: var(--bar);
+      }
+      .chart i.now {
+        background: var(--accent);
+      }
+      .weeks {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+
+      .budget {
+        margin-bottom: 12px;
+      }
+      .budget:last-child {
+        margin-bottom: 0;
+      }
+      .budget div {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        font-size: 13px;
+      }
+      .budget div span {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .meter {
+        height: 7px;
+        border-radius: 99px;
+        background: var(--bg);
+        overflow: hidden;
+      }
+      .meter i {
+        display: block;
+        height: 100%;
+        border-radius: 99px;
+        background: var(--accent);
+      }
+      .meter i.hot {
+        background: var(--warm);
+      }
+
+      .quick {
+        display: grid;
+        grid-template-columns: 120px 1fr auto;
+        gap: 10px;
+        align-items: end;
+      }
+      .quick label {
+        display: block;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .quick input {
+        display: block;
+        width: 100%;
+        margin-top: 5px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        font: inherit;
+        font-size: 16px;
+        color: var(--ink);
+        background: var(--bg);
+      }
+      .quick input:focus {
+        outline: 2px solid var(--accent);
+        outline-offset: 0;
+        border-color: transparent;
+      }
+
+      .rows {
+        margin-top: 14px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 34px 1fr 130px 90px;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 0;
+        border-top: 1px solid var(--line);
+      }
+      .row:first-of-type {
+        border-top: 0;
+      }
+      .row .dot {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: var(--accent-soft);
+      }
+      .row .dot.b {
+        background: color-mix(in srgb, var(--warm) 24%, var(--card));
+      }
+      .row b {
+        display: block;
+        font-weight: 600;
+      }
+      .row small,
+      .row .cat {
+        color: var(--muted);
+        font-size: 12.5px;
+      }
+      .row .amt {
+        text-align: right;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .tabs {
+        display: none;
+      }
+
+      /* ----- phone ----- */
+      @media (max-width: 640px) {
+        .app {
+          display: block;
+        }
+        .side {
+          display: none;
+        }
+        main {
+          padding: 14px 16px 96px;
+        }
+        .top {
+          margin-bottom: 14px;
+        }
+        .top .range,
+        .top .btn {
+          display: none;
+        }
+        .avatar {
+          display: block;
+          margin-left: auto;
+        }
+        .stats {
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .stat:first-child {
+          grid-column: 1 / -1;
+        }
+        .stat:first-child b {
+          font-size: 30px;
+        }
+        .cols {
+          grid-template-columns: 1fr;
+        }
+        .quick {
+          grid-template-columns: 1fr;
+        }
+        .quick .btn {
+          padding: 11px;
+        }
+        .row {
+          grid-template-columns: 34px 1fr auto;
+        }
+        .row .cat {
+          display: none;
+        }
+        .tabs {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          display: flex;
+          justify-content: space-around;
+          padding: 9px 8px 12px;
+          border-top: 1px solid var(--line);
+          background: var(--card);
+        }
+        .tabs a {
+          display: grid;
+          justify-items: center;
+          gap: 3px;
+          font-size: 10.5px;
+          font-weight: 600;
+          color: var(--muted);
+          text-decoration: none;
+        }
+        .tabs a.on {
+          color: var(--accent);
+        }
+        .tabs svg {
+          width: 21px;
+          height: 21px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside class="side">
+        <div class="brand"><i></i>Fernway</div>
+        <nav class="nav">
+          <a class="on" href="#"
+            ><svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M3 9.5 10 3.500l7 6V16a1 1 0 0 1-1 1h-3.500v-4.500h-5V17H4a1 1 0 0 1-1-1z"
+              /></svg
+            >Overview</a
+          >
+          <a href="#"
+            ><svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 5.500h12M4 10h12M4 14.500h8" /></svg
+            >Expenses</a
+          >
+          <a href="#"
+            ><svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="10" cy="10" r="6.5" />
+              <path d="M10 3.500V10l4.5 3" /></svg
+            >Budgets</a
+          >
+          <a href="#"
+            ><svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M4 16V9m4 7V5m4 11v-5m4 5V7" /></svg
+            >Reports</a
+          >
+          <a href="#"
+            ><svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="10" cy="7.5" r="3" />
+              <path d="M4 16.500c.8-2.7 3.2-4 6-4s5.2 1.3 6 4" /></svg
+            >Team</a
+          >
+        </nav>
+        <div class="plan"><b>Studio plan</b>6 of 10 seats in use</div>
+      </aside>
+
+      <main>
+        <div class="top">
+          <h1>Overview</h1>
+          <span class="range">Oct 1 – Oct 31</span>
+          <button class="btn" type="button">New expense</button>
+          <span class="avatar"></span>
+        </div>
+
+        <section class="stats">
+          <div class="card stat">
+            <small>Spent this month</small><b>$8,412</b><span>12% under budget</span>
+          </div>
+          <div class="card stat"><small>Remaining</small><b>$3,588</b><span>9 days left</span></div>
+          <div class="card stat">
+            <small>Largest category</small><b>Travel</b><span class="up">$2,960 so far</span>
+          </div>
+        </section>
+
+        <section class="cols">
+          <div class="card">
+            <h2>Weekly spend</h2>
+            <div class="chart">
+              <i style="height: 42%"></i><i style="height: 58%"></i><i style="height: 49%"></i
+              ><i style="height: 71%"></i> <i style="height: 63%"></i><i style="height: 88%"></i
+              ><i style="height: 54%"></i><i style="height: 67%"></i> <i style="height: 79%"></i
+              ><i style="height: 60%"></i><i style="height: 92%"></i
+              ><i class="now" style="height: 74%"></i>
+            </div>
+            <div class="weeks"><span>Aug</span><span>Sep</span><span>Oct</span></div>
+          </div>
+          <div class="card">
+            <h2>Budgets</h2>
+            <div class="budget">
+              <div>Travel<span>$2,960 / $3,200</span></div>
+              <div class="meter"><i class="hot" style="width: 92%"></i></div>
+            </div>
+            <div class="budget">
+              <div>Software<span>$1,840 / $2,500</span></div>
+              <div class="meter"><i style="width: 74%"></i></div>
+            </div>
+            <div class="budget">
+              <div>Meals<span>$612 / $1,200</span></div>
+              <div class="meter"><i style="width: 51%"></i></div>
+            </div>
+            <div class="budget">
+              <div>Equipment<span>$3,000 / $5,100</span></div>
+              <div class="meter"><i style="width: 59%"></i></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Quick add</h2>
+          <form class="quick" onsubmit="return false;">
+            <label
+              >Amount<input id="amount" type="text" inputmode="decimal" placeholder="$0.00"
+            /></label>
+            <label>Note<input id="note" type="text" placeholder="What was it for?" /></label>
+            <button class="btn" type="submit">Add expense</button>
+          </form>
+        </section>
+
+        <section class="card rows">
+          <h2>Recent expenses</h2>
+          <div class="row">
+            <span class="dot"></span>
+            <div><b>Flights to Lisbon</b><small>Oct 22 · Mara</small></div>
+            <span class="cat">Travel</span><span class="amt">$1,240.00</span>
+          </div>
+          <div class="row">
+            <span class="dot b"></span>
+            <div><b>Design tool, annual</b><small>Oct 20 · Jonas</small></div>
+            <span class="cat">Software</span><span class="amt">$540.00</span>
+          </div>
+          <div class="row">
+            <span class="dot"></span>
+            <div><b>Team lunch</b><small>Oct 18 · Priya</small></div>
+            <span class="cat">Meals</span><span class="amt">$186.40</span>
+          </div>
+          <div class="row">
+            <span class="dot b"></span>
+            <div><b>Standing desk</b><small>Oct 15 · Mara</small></div>
+            <span class="cat">Equipment</span><span class="amt">$720.00</span>
+          </div>
+          <div class="row">
+            <span class="dot"></span>
+            <div><b>Train to Porto</b><small>Oct 12 · Jonas</small></div>
+            <span class="cat">Travel</span><span class="amt">$96.00</span>
+          </div>
+          <div class="row">
+            <span class="dot b"></span>
+            <div><b>Hosting</b><small>Oct 9 · Priya</small></div>
+            <span class="cat">Software</span><span class="amt">$212.00</span>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <nav class="tabs">
+      <a class="on" href="#"
+        ><svg
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M3 9.5 10 3.500l7 6V16a1 1 0 0 1-1 1h-3.500v-4.500h-5V17H4a1 1 0 0 1-1-1z"
+          /></svg
+        >Overview</a
+      >
+      <a href="#"
+        ><svg
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 5.500h12M4 10h12M4 14.500h8" /></svg
+        >Expenses</a
+      >
+      <a href="#"
+        ><svg
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="10" cy="10" r="6.5" />
+          <path d="M10 3.500V10l4.5 3" /></svg
+        >Budgets</a
+      >
+      <a href="#"
+        ><svg
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M4 16V9m4 7V5m4 11v-5m4 5V7" /></svg
+        >Reports</a
+      >
+    </nav>
+  </body>
+</html>

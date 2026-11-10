@@ -1,0 +1,29 @@
+{
+  "name": "sidephone",
+  "version": "1.0.1",
+  "private": true,
+  "description": "Chrome extension: your page at phone size in the side panel, next to the desktop version.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "test:browser": "python3 tests/browser/test_extension.py",
+    "build": "node scripts/build.mjs",
+    "check": "npm run lint && npm run format:check && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@fontsource-variable/funnel-display": "^5.3.0",
+    "@fontsource-variable/funnel-sans": "^5.3.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

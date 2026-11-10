@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sidephone</title>
+    <meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header id="toolbar">
+      <button
+        id="device-btn"
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        aria-controls="device-menu"
+        title="Choose a device"
+      >
+        <svg
+          viewBox="0 0 16 16"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="4.2" y="1.8" width="7.6" height="12.4" rx="1.8" />
+          <path d="M7 11.800h2" /></svg
+        ><span id="device-name"></span
+        ><svg
+          viewBox="0 0 16 16"
+          width="12"
+          height="12"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+        </svg>
+      </button>
+      <select id="preset" class="visually-hidden" tabindex="-1" aria-hidden="true">
+        <option value="fit">Responsive</option>
+      </select>
+      <span id="readout"></span>
+      <span id="scale"></span>
+      <span class="spacer"></span>
+      <button id="rotate" class="icon-btn" type="button" title="Rotate" aria-label="Rotate">
+        <svg
+          viewBox="0 0 16 16"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 8a5 5 0 0 1 8.6-3.500L13 6" />
+          <path d="M13 2.800V6H9.8" />
+          <path d="M13 8a5 5 0 0 1-8.6 3.500L3 10" />
+          <path d="M3 13.200V10h3.2" />
+        </svg>
+      </button>
+      <label class="icon-btn" title="Pin this page, so the mobile view stays put while you browse">
+        <input type="checkbox" id="pin" class="visually-hidden" aria-label="Pin this page" /><svg
+          viewBox="0 0 16 16"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M9.6 2.400l4 4-1.9.6-2.2 2.2.3 3.1-1 1-2.8-2.800L2.6 13.9" />
+          <path d="M6 10.500L3.2 7.700l1-1 3.1.3 2.2-2.2" />
+        </svg>
+      </label>
+      <button
+        id="popout"
+        class="icon-btn"
+        type="button"
+        title="Open in its own window at full size"
+        aria-label="Open in its own window"
+      >
+        <svg
+          viewBox="0 0 16 16"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M9.2 2.800h4v4" />
+          <path d="M13.2 2.800L7.6 8.4" />
+          <path d="M11.2 9.400v2.800a1 1 0 0 1-1 1H3.800a1 1 0 0 1-1-1V5.800a1 1 0 0 1 1-1h2.8" />
+        </svg>
+      </button>
+      <button
+        id="settings-btn"
+        class="icon-btn"
+        type="button"
+        title="View options"
+        aria-label="View options"
+        aria-expanded="false"
+        aria-controls="settings"
+      >
+        <svg
+          viewBox="0 0 16 16"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M2.5 5h5.200M11.3 5h2.200M2.5 11h2.200M8.3 11h5.2" />
+          <circle cx="9.5" cy="5" r="1.8" />
+          <circle cx="6.5" cy="11" r="1.8" />
+        </svg>
+      </button>
+    </header>
+    <div id="progress" aria-hidden="true"></div>
+
+    <div id="device-menu" class="menu" role="listbox" aria-label="Device" hidden></div>
+
+    <section id="settings" class="menu" aria-label="View options" hidden>
+      <label
+        class="row"
+        id="site-row"
+        title="Turn this off to stop mirroring this site and remove the extension's access to it."
+        hidden
+      >
+        <span id="site-label"></span>
+        <input type="checkbox" class="switch" id="site-toggle" />
+      </label>
+      <div class="sep"></div>
+      <label class="row" title="Draw the phone's body, rounded corners and camera cutout">
+        <span>Device frame</span>
+        <input type="checkbox" class="switch" id="frame-toggle" />
+      </label>
+      <label
+        class="row"
+        title="Leave room for the phone browser's own bars, so the page gets the height it would on a real phone"
+      >
+        <span>Browser bars</span>
+        <input type="checkbox" class="switch" id="bars" />
+      </label>
+      <label class="row" title="Show the phone keyboard when a text field is focused">
+        <span>Keyboard</span>
+        <input type="checkbox" class="switch" id="kb-toggle" />
+      </label>
+      <label class="row" title="Scroll the mobile view along with the main tab">
+        <span>Sync scroll</span>
+        <input type="checkbox" class="switch" id="scroll-sync" />
+      </label>
+      <div class="sep"></div>
+      <div
+        class="row"
+        id="zoom-row"
+        title="How big the preview is drawn. The page's layout is unaffected. Real matches a phone held up to your screen."
+      >
+        <span>Size</span>
+        <span class="segmented" role="radiogroup" aria-label="Size on screen">
+          <label><input type="radio" name="zoom" value="actual" /><span>Real</span></label>
+          <label><input type="radio" name="zoom" value="0.5" /><span>50</span></label>
+          <label><input type="radio" name="zoom" value="0.75" /><span>75</span></label>
+          <label><input type="radio" name="zoom" value="1" /><span>100</span></label>
+        </span>
+      </div>
+      <div class="row" id="cal-row" title="Real size needs to know how dense this screen is">
+        <span id="cal-note" class="muted"></span>
+        <button id="cal-btn" class="ghost-btn" type="button">Calibrate</button>
+      </div>
+    </section>
+
+    <main id="stage">
+      <div id="status" role="status" hidden>
+        <span id="status-text"></span>
+        <button id="status-action" class="ghost-btn" type="button" hidden></button>
+      </div>
+      <div id="site-notice" hidden>
+        <span id="site-notice-text"></span>
+        <button id="site-enable" class="ghost-btn" type="button">Mirror this site</button>
+      </div>
+      <div id="calibrate" hidden>
+        <p>
+          Hold a bank card flat against the screen, then drag the slider until the outline is
+          exactly the card's size.
+        </p>
+        <div id="cal-card"></div>
+        <input
+          type="range"
+          id="cal-slider"
+          min="2.5"
+          max="9"
+          step="0.01"
+          aria-label="Outline size"
+        />
+        <div class="cal-actions">
+          <button id="cal-cancel" class="ghost-btn" type="button">Cancel</button>
+          <button id="cal-save" class="ghost-btn primary" type="button">Save size</button>
+        </div>
+      </div>
+      <div id="device">
+        <div id="shell">
+          <div id="screen">
+            <div id="bar-top" class="bar" hidden>
+              <div id="statusbar" hidden>
+                <span>9:41</span
+                ><svg viewBox="0 0 68 14" width="68" height="14" aria-hidden="true">
+                  <g fill="currentColor">
+                    <rect x="0" y="9" width="3" height="4.5" rx="0.8" />
+                    <rect x="4.6" y="6.5" width="3" height="7" rx="0.8" />
+                    <rect x="9.2" y="4" width="3" height="9.5" rx="0.8" />
+                    <rect x="13.8" y="1.2" width="3" height="12.3" rx="0.8" />
+                    <circle cx="30" cy="11.6" r="1.6" />
+                    <rect x="45.6" y="3.6" width="16.8" height="6.8" rx="1.8" />
+                    <rect x="66" y="5" width="1.6" height="4" rx="0.8" opacity="0.45" />
+                  </g>
+                  <g fill="none" stroke="currentColor">
+                    <path
+                      d="M22.8 5.6a10.2 10.2 0 0 1 14.4 0M25.6 8.5a6.2 6.2 0 0 1 8.8 0"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                    <rect
+                      x="43.5"
+                      y="1.5"
+                      width="21"
+                      height="11"
+                      rx="3.4"
+                      stroke-width="1"
+                      opacity="0.45"
+                    />
+                  </g>
+                </svg>
+              </div>
+              <div class="pill"></div>
+            </div>
+            <!-- No allow-top-navigation: the mirrored page must not be able to replace this view. -->
+            <iframe
+              id="frame"
+              title="Mobile view of the active tab"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads allow-pointer-lock allow-presentation"
+              allow="clipboard-read; clipboard-write; fullscreen; geolocation"
+            ></iframe>
+            <div id="bar-bottom" class="bar" hidden>
+              <div class="pill"></div>
+              <div class="browser-tools" hidden>
+                <svg
+                  viewBox="0 0 24 24"
+                  width="24"
+                  height="24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m14.5 5-7 7 7 7" /></svg
+                ><svg
+                  viewBox="0 0 24 24"
+                  width="24"
+                  height="24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m9.5 5 7 7-7 7" opacity="0.35" /></svg
+                ><svg
+                  viewBox="0 0 24 24"
+                  width="24"
+                  height="24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 14V3.5m-3.6 3.4L12 3.3l3.6 3.6" />
+                  <path
+                    d="M8.5 9.5H7a1.5 1.5 0 0 0-1.5 1.5v8A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 17 9.5h-1.5"
+                  /></svg
+                ><svg
+                  viewBox="0 0 24 24"
+                  width="24"
+                  height="24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 6.5C10 5 7 4.6 3.5 5v13c3.5-.4 6.5 0 8.5 1.5 2-1.5 5-1.9 8.5-1.500V5c-3.5-.4-6.5 0-8.5 1.500zm0 0v13"
+                  /></svg
+                ><svg
+                  viewBox="0 0 24 24"
+                  width="24"
+                  height="24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="8" y="8" width="12" height="12" rx="2.2" />
+                  <path
+                    d="M16 8V6.200A2.2 2.2 0 0 0 13.8 4H6.200A2.2 2.2 0 0 0 4 6.200v7.600A2.2 2.2 0 0 0 6.2 16H8"
+                  />
+                </svg>
+              </div>
+              <div class="indicator"></div>
+            </div>
+            <div id="cutout" hidden></div>
+            <div id="keyboard" aria-hidden="true"></div>
+          </div>
+          <div id="home-button" hidden></div>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="panel.js"></script>
+  </body>
+</html>
