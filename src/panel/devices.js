@@ -7,10 +7,14 @@
 // corner radius, bezel, physical density and browser bar heights.
 
 export const NO_BARS = Object.freeze({ top: 0, bottom: 0 });
+const NO_BARS_BY_ORIENTATION = Object.freeze({ p: NO_BARS, l: NO_BARS });
 
 // Browser bars: the space a browser's own UI takes away from the page, split
 // into what sits above and below it, for portrait (p) and landscape (l).
 // Real values shift with OS version and whether the bars are collapsed.
+//
+// `app` is the same for a page shown in an app's WebView instead of a browser:
+// only the system's own bars remain, the status bar and the home indicator.
 //
 // `status` describes the status bar (clock and signal icons): its height, side
 // padding and text size, and whether it stays visible in landscape.
@@ -22,6 +26,7 @@ const iosBars = (safeTop) => ({
   address: "bottom",
   p: { top: safeTop, bottom: 101 },
   l: { top: 89, bottom: 21 },
+  app: { p: { top: safeTop, bottom: 34 }, l: { top: 0, bottom: 21 } },
   status: { h: safeTop, left: 48, right: 31, font: 17, landscape: false },
 });
 
@@ -31,6 +36,7 @@ const IOS_HOME_BARS = {
   address: "top",
   p: { top: 70, bottom: 45 },
   l: { top: 60, bottom: 0 },
+  app: { p: { top: 20, bottom: 0 }, l: NO_BARS_BY_ORIENTATION.l },
   status: { h: 20, left: 7, right: 6, font: 12, landscape: false },
 };
 
@@ -42,6 +48,7 @@ const androidBars = (safeTop) => ({
   address: "top",
   p: { top: safeTop + ANDROID_TOOLBAR, bottom: 26 },
   l: { top: 24 + ANDROID_TOOLBAR, bottom: 24 },
+  app: { p: { top: safeTop, bottom: 26 }, l: { top: 24, bottom: 24 } },
   status: { h: safeTop, left: 24, right: 20, font: 14, landscape: false },
 });
 
@@ -50,6 +57,7 @@ const TABLET_BARS = {
   address: "top",
   p: { top: 80, bottom: 20 },
   l: { top: 80, bottom: 20 },
+  app: { p: { top: 26, bottom: 20 }, l: { top: 26, bottom: 20 } },
   status: { h: 26, left: 18, right: 16, font: 13, landscape: true },
 };
 
@@ -59,11 +67,19 @@ const DESKTOP_BARS = {
   address: "top",
   p: { top: 86, bottom: 48 },
   l: { top: 86, bottom: 48 },
+  app: { p: { top: 0, bottom: 48 }, l: { top: 0, bottom: 48 } },
   status: null,
 };
 
 // A smart display shows the page full screen.
-const KIOSK_BARS = { kind: "tablet", address: "top", p: NO_BARS, l: NO_BARS, status: null };
+const KIOSK_BARS = {
+  kind: "tablet",
+  address: "top",
+  p: NO_BARS,
+  l: NO_BARS,
+  app: NO_BARS_BY_ORIENTATION,
+  status: null,
+};
 
 // Camera cutouts, measured in portrait: width, height, distance from the top
 // edge, and `inset`, the margin a browser leaves beside the cutout in landscape.
@@ -263,7 +279,18 @@ export const DEVICE_GROUPS = [
 export const RESPONSIVE = "fit";
 export const DEFAULT_DEVICE = "iphone-16";
 
-export const isKnownPreset = (id) => id === RESPONSIVE || Object.hasOwn(DEVICES, id);
+export const isDevice = (id) => typeof id === "string" && Object.hasOwn(DEVICES, id);
+export const isKnownPreset = (id) => id === RESPONSIVE || isDevice(id);
+
+/** Every device, in menu order. */
+export const DEVICE_ORDER = DEVICE_GROUPS.flatMap((group) => group.ids);
+
+/** The device `step` places after `id` in the menu, wrapping around. */
+export function cycleDevice(id, step) {
+  const index = DEVICE_ORDER.indexOf(id);
+  if (index === -1) return step > 0 ? DEVICE_ORDER[0] : DEVICE_ORDER.at(-1);
+  return DEVICE_ORDER[(index + step + DEVICE_ORDER.length) % DEVICE_ORDER.length];
+}
 
 /**
  * Everything layout needs for a device, or null for the responsive preset.
@@ -273,7 +300,7 @@ export const isKnownPreset = (id) => id === RESPONSIVE || Object.hasOwn(DEVICES,
  *  screenW/H       the part of the display that is drawn
  *  outerW/H        the whole drawing, including the body when framed
  *
- * @param {{preset: string, rotated: boolean, browserBars: boolean, deviceFrame: boolean}} settings
+ * @param {{preset: string, rotated: boolean, browserBars: boolean, deviceFrame: boolean, inApp?: boolean}} settings
  */
 export function getMetrics(settings) {
   const spec = DEVICES[settings.preset];
@@ -284,11 +311,17 @@ export function getMetrics(settings) {
   const sw = rotated ? spec.h : spec.w;
   const sh = rotated ? spec.w : spec.h;
 
-  const bars = settings.browserBars ? spec.bars[rotated ? "l" : "p"] : NO_BARS;
+  // In-app mode replaces the browser's bars with the system's own.
+  const orientation = rotated ? "l" : "p";
+  const inApp = Boolean(settings.inApp);
+  let bars = NO_BARS;
+  if (inApp) bars = spec.bars.app[orientation];
+  else if (settings.browserBars) bars = spec.bars[orientation];
 
-  // In landscape the camera cutout sits at the side, and the browser keeps the
-  // page clear of it with an equal margin on both sides.
-  const sideInset = rotated && settings.browserBars && spec.cutout ? spec.cutout.inset : 0;
+  // In landscape the camera cutout sits at the side, and the browser (or the
+  // app's safe area) keeps the page clear of it with a margin on both sides.
+  const keepsClearOfCutout = inApp || settings.browserBars;
+  const sideInset = rotated && keepsClearOfCutout && spec.cutout ? spec.cutout.inset : 0;
   const w = sw - 2 * sideInset;
   const h = sh - bars.top - bars.bottom;
 
@@ -305,6 +338,7 @@ export function getMetrics(settings) {
     spec,
     rotated,
     framed,
+    inApp,
     bars,
     sw,
     sh,

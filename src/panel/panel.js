@@ -1,17 +1,27 @@
-// A mirror view. The same page runs in two places: the side panel, and a
-// pop-out window opened from it. A view follows the active tab of one browser
-// window and loads the same URL in its frame at the chosen device size.
+// A Sidephone view: the side panel, or a pop-out window opened from it. It
+// follows the active tab of one browser window and shows that page in one or
+// more devices side by side (view.js draws each one). This file runs the
+// toolbar, menus, checks and breakpoints, and the connection to the tab.
 
 import {
+  DEFAULT_DEVICE,
+  DEFAULT_PX_PER_MM,
   DEVICES,
   DEVICE_GROUPS,
   RESPONSIVE,
-  DEFAULT_PX_PER_MM,
+  cycleDevice,
   getMetrics,
+  isDevice,
   realSizeScale,
 } from "./devices.js";
-import { KEYBOARD_MARKUP, keyboardHasFoot, keyboardHeight, keyboardPlatform } from "./keyboard.js";
-import { ZOOM_ACTUAL, loadSettings, saveSettings } from "./settings.js";
+import { clampWidth, fitScales, snapToBreakpoint } from "./layout.js";
+import {
+  MAX_COMPARE,
+  ZOOM_ACTUAL,
+  loadSettings,
+  rememberSiteDevice,
+  saveSettings,
+} from "./settings.js";
 import {
   contentScriptReady,
   hasAccess,
@@ -20,25 +30,18 @@ import {
   requestAccess,
   siteOf,
 } from "./sites.js";
+import { DeviceView, TAG } from "./view.js";
 
 const el = (id) => document.getElementById(id);
-const frame = el("frame");
 const stage = el("stage");
-const device = el("device");
-const shell = el("shell");
-const screenEl = el("screen");
-const barTop = el("bar-top");
-const barBottom = el("bar-bottom");
-const statusBar = el("statusbar");
-const cutoutEl = el("cutout");
-const homeButton = el("home-button");
-const keyboardEl = el("keyboard");
+const viewsEl = el("views");
+const template = el("view-template");
+const emptyEl = el("empty");
 const readout = el("readout");
 const scaleEl = el("scale");
 const statusEl = el("status");
 const statusText = el("status-text");
 const statusAction = el("status-action");
-const presetSelect = el("preset");
 const rotateButton = el("rotate");
 const popoutButton = el("popout");
 const pinToggle = el("pin");
@@ -46,15 +49,14 @@ const scrollToggle = el("scroll-sync");
 const barsToggle = el("bars");
 const frameToggle = el("frame-toggle");
 const keyboardToggle = el("kb-toggle");
+const inAppToggle = el("in-app");
+const outlinesToggle = el("outlines-toggle");
 const zoomInputs = [...document.querySelectorAll('input[name="zoom"]')];
 
-const { short_name: EXTENSION_NAME } = chrome.runtime.getManifest();
-
-/** Marks messages as belonging to this extension. Must match content.js. */
-const TAG = "side-mirror";
-
-/** How long a page gets to report in before it is treated as not loading. */
-const LOAD_TIMEOUT_MS = 10_000;
+const MANIFEST = chrome.runtime.getManifest();
+const EXTENSION_NAME = MANIFEST.short_name;
+const ISOLATED_FILES = MANIFEST.content_scripts.find((script) => script.world !== "MAIN").js;
+const PAGE_WORLD_FILES = MANIFEST.content_scripts.find((script) => script.world === "MAIN").js;
 
 const params = new URLSearchParams(location.search);
 const IS_POPOUT = params.get("popout") === "1";
@@ -65,25 +67,44 @@ const persist = () => {
   if (!IS_POPOUT) saveSettings(settings);
 };
 
+// Keep a little air around the devices in the side panel. The pop-out window
+// is sized to them exactly, so it gets none.
+const STAGE_PADDING = IS_POPOUT ? 0 : 8;
+const VIEW_GAP = 16;
+const LABEL_HEIGHT = 32; // device names above each device when comparing
+const HANDLE_WIDTH = 16; // the resize grip beside a responsive page
+// Chrome reports a single-page app's route change like any navigation. The
+// page reports it too, a moment later, so a load waits this long for that.
+const SAME_DOCUMENT_GRACE_MS = 150;
+
 // ---------- state ----------
 
 let followWindowId = null; // the browser window whose active tab is mirrored
-let currentUrl = null; // what the frame was last told to load
-let frameReady = false; // the mirrored page has reported in
+let followedTabId = null;
+let currentUrl = null; // the page the views were last told to show
+let currentHost = null; // its host, for remembering a device per site
 let pinned = false;
-let loadTimer = null;
 let tabPort = null; // connection to the content script in the mirrored tab
 let tabPortId = null;
+let tabErrors = null; // messages of errors seen in the tab, while connected
 let lastScrollFraction = 0;
-let pageColors = null; // { theme, background } reported by the mirrored page
-let keyboardState = { open: false, layout: "text" };
-let keyboardMarkupKey = "";
-let keyboardInset = 0; // how much of the page the keyboard covers
 let offeredSite = null; // the site the "Mirror this site" button would grant
+let responsiveWidth = 0; // the width a responsive page currently has
 
-const px = (n) => `${n}px`;
+/** @type {DeviceView[]} The first is the main device; the rest are compared with it. */
+const views = [];
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const withoutHash = (url) => url.split("#")[0];
-const metrics = () => getMetrics(settings);
+const viewSettings = (view) => ({ ...settings, preset: view.preset });
+
+function sameOrigin(a, b) {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+}
 
 // ---------- status ----------
 
@@ -94,260 +115,159 @@ function setLoading(on) {
 /**
  * Show a notice over the stage, or clear it with an empty string.
  * @param {string} text
- * @param {{bad?: boolean, action?: {label: string, run: () => void}}} [options]
+ * @param {{bad?: boolean, action?: {label: string, run: () => void}, clearAfter?: number}} [options]
  */
-function setStatus(text, { bad = false, action = null } = {}) {
+let statusTimer = null;
+function setStatus(text, { bad = false, action = null, clearAfter = 0 } = {}) {
+  clearTimeout(statusTimer);
   statusText.textContent = text;
   statusEl.hidden = !text;
   statusEl.classList.toggle("bad", bad);
   statusAction.hidden = !action;
   statusAction.textContent = action ? action.label : "";
   statusAction.onclick = action ? action.run : null;
+  if (text && clearAfter) statusTimer = setTimeout(() => setStatus(""), clearAfter);
 }
 
-// ---------- layout ----------
-
-const HOME_BUTTON_SIZE = 46;
-const STAGE_PADDING = 8;
-const MIN_BAR_HEIGHT_FOR_ADDRESS = 44;
-
-function layoutBar(bar, height, showAddress) {
-  bar.hidden = height <= 0;
-  bar.style.height = px(height);
-  bar.querySelector(".pill").hidden = !showAddress || height < MIN_BAR_HEIGHT_FOR_ADDRESS;
+function updateEmptyState() {
+  const empty = currentUrl === null;
+  document.body.classList.toggle("empty", empty);
+  emptyEl.hidden = !empty;
 }
+
+// ---------- the devices on the stage ----------
+
+/** In-app mode on an Android device shows the page an Android WebView user agent. */
+function frameNameFor(view) {
+  return settings.inApp && DEVICES[view.preset]?.bars.kind === "android"
+    ? "sidephone:android-webview"
+    : "";
+}
+
+/** Create or remove views so there is one per device, in order. */
+function syncViews() {
+  const presets = [settings.preset, ...settings.compare];
+  while (views.length > presets.length) views.pop().destroy();
+  while (views.length < presets.length) {
+    const view = new DeviceView(template, { onLoadTimeout: handleLoadTimeout });
+    view.els.name.addEventListener("click", () =>
+      openDeviceMenu(views.indexOf(view), view.els.name),
+    );
+    view.els.remove.addEventListener("click", () => removeCompared(views.indexOf(view)));
+    setUpResizeHandle(view);
+    views.push(view);
+    viewsEl.append(view.root);
+  }
+  views.forEach((view, index) => (view.preset = presets[index]));
+  viewsEl.classList.toggle("compare", views.length > 1);
+
+  // New views, and views whose frame must be presented differently, load the page.
+  for (const view of views) {
+    const frameName = frameNameFor(view);
+    if (currentUrl && (!view.url || view.els.frame.name !== frameName)) {
+      view.load(view.url ?? currentUrl, { force: true, frameName });
+      setLoading(true);
+    }
+  }
+}
+
+const wantedScale = (spec) =>
+  settings.zoom === ZOOM_ACTUAL ? realSizeScale(spec, settings.pxPerMm) : settings.zoom;
 
 function layout() {
   const availW = stage.clientWidth;
   const availH = stage.clientHeight;
-  if (!availW || !availH) return;
+  if (!availW || !availH || views.length === 0) return;
 
-  const m = metrics();
-  rotateButton.disabled = !m || Boolean(m.spec.landscapeOnly);
-  for (const input of zoomInputs) input.disabled = !m;
-  barsToggle.disabled = !m;
-  frameToggle.disabled = !m;
+  const main = getMetrics(viewSettings(views[0]));
+  updateControls(main);
 
-  if (!m) {
-    layoutResponsive(availW, availH);
+  if (!main) {
+    layoutResponsive(views[0], availW, availH);
   } else {
-    layoutDevice(m, availW, availH);
-  }
-  // Nothing in the device should ever be scrolled out of place.
-  screenEl.scrollTop = 0;
-  screenEl.scrollLeft = 0;
-  paintBars();
-  layoutKeyboard();
-}
-
-// Responsive: the page simply fills the stage.
-function layoutResponsive(availW, availH) {
-  shell.className = "";
-  shell.style.cssText = "";
-  for (const node of [shell, screenEl, frame, device]) {
-    node.style.width = px(availW);
-    node.style.height = px(availH);
-  }
-  screenEl.style.borderRadius = "";
-  barTop.hidden = true;
-  barBottom.hidden = true;
-  cutoutEl.hidden = true;
-  homeButton.hidden = true;
-  readout.textContent = `${availW} × ${availH}`;
-  scaleEl.textContent = "";
-}
-
-function layoutDevice(m, availW, availH) {
-  const { spec, rotated, framed } = m;
-
-  // Keep a little air around the device in the side panel. The pop-out window
-  // is sized to the device exactly, so it gets none.
-  const padding = IS_POPOUT ? 0 : STAGE_PADDING;
-  const wanted =
-    settings.zoom === ZOOM_ACTUAL ? realSizeScale(spec, settings.pxPerMm) : settings.zoom;
-  const scale = Math.min(
-    wanted,
-    (availW - 2 * padding) / m.outerW,
-    (availH - 2 * padding) / m.outerH,
-  );
-
-  shell.className = framed ? "framed" : "boxed";
-  shell.style.width = px(m.outerW);
-  shell.style.height = px(m.outerH);
-  shell.style.padding = `${px(m.padY)} ${px(m.padX)}`;
-  shell.style.borderRadius = framed
-    ? px(spec.bodyRadius ?? spec.radius + Math.min(m.padX, m.padY))
-    : "";
-  shell.style.transform = scale !== 1 ? `scale(${scale})` : "";
-
-  screenEl.style.width = px(m.screenW);
-  screenEl.style.height = px(m.screenH);
-  screenEl.style.borderRadius = framed ? px(spec.radius) : "";
-
-  frame.style.width = px(m.w);
-  frame.style.height = px(m.h);
-
-  // Browser bars are drawn only inside the device frame. The address goes
-  // where the device normally shows it, unless that bar is too thin in this
-  // orientation.
-  const topH = framed ? m.bars.top : 0;
-  const bottomH = framed ? m.bars.bottom : 0;
-  const addressAtTop = spec.bars.address === "top" || bottomH < MIN_BAR_HEIGHT_FOR_ADDRESS;
-  layoutBar(barTop, topH, addressAtTop);
-  layoutBar(barBottom, bottomH, !addressAtTop);
-
-  // Status bar: clock and signal icons at the very top of the screen.
-  const status = spec.bars.status;
-  const showStatus =
-    Boolean(status) && status.h > 0 && topH >= status.h && (!rotated || status.landscape);
-  statusBar.hidden = !showStatus;
-  if (showStatus) {
-    statusBar.style.height = px(status.h);
-    statusBar.style.padding = `0 ${px(status.right)} 0 ${px(status.left)}`;
-    statusBar.style.fontSize = px(status.font);
-  }
-
-  // Phones with a home button have the browser's toolbar under the page
-  // instead of a swipe indicator.
-  const hasToolbar = Boolean(spec.homeButton) && bottomH >= MIN_BAR_HEIGHT_FOR_ADDRESS;
-  barBottom.querySelector(".indicator").hidden = Boolean(spec.homeButton);
-  barBottom.querySelector(".browser-tools").hidden = !hasToolbar;
-  barBottom.classList.toggle("tools", hasToolbar);
-
-  // Camera cutout: at the top in portrait, on the left side when rotated.
-  const cutout = framed ? spec.cutout : null;
-  cutoutEl.hidden = !cutout;
-  if (cutout) {
-    const w = rotated ? cutout.h : cutout.w;
-    const h = rotated ? cutout.w : cutout.h;
-    cutoutEl.style.width = px(w);
-    cutoutEl.style.height = px(h);
-    cutoutEl.style.left = px(rotated ? cutout.top : (m.sw - w) / 2);
-    cutoutEl.style.top = px(rotated ? (m.sh - h) / 2 : cutout.top);
-  }
-
-  // Home button: in the chin below the display, or to its right when rotated.
-  const showHome = framed && Boolean(spec.homeButton);
-  homeButton.hidden = !showHome;
-  if (showHome) {
-    const chin = rotated ? m.padX : m.padY;
-    const inset = (chin - HOME_BUTTON_SIZE) / 2;
-    homeButton.style.left = px(
-      rotated ? m.outerW - chin + inset : (m.outerW - HOME_BUTTON_SIZE) / 2,
+    const items = views.map((view) => {
+      const m = getMetrics(viewSettings(view));
+      return { view, m, w: m.outerW, h: m.outerH, wanted: wantedScale(m.spec) };
+    });
+    const scales = fitScales(
+      items,
+      { width: availW, height: availH },
+      { gap: VIEW_GAP, padding: STAGE_PADDING, labelHeight: views.length > 1 ? LABEL_HEIGHT : 0 },
     );
-    homeButton.style.top = px(
-      rotated ? (m.outerH - HOME_BUTTON_SIZE) / 2 : m.outerH - chin + inset,
-    );
+    items.forEach(({ view, m }, index) => {
+      view.draw(m, scales[index]);
+      view.els.handle.hidden = true;
+      view.setLabel(m.spec.name, `${m.w} × ${m.h}`, index > 0);
+    });
+
+    readout.textContent = `${main.w} × ${main.h}`;
+    readout.title = "The size the page lays out at";
+    const scale = scales[0];
+    const wanted = items[0].wanted;
+    scaleEl.textContent = Math.abs(scale - 1) > 0.004 ? `${Math.round(scale * 100)}%` : "";
+    if (scale < wanted - 0.004) {
+      scaleEl.title =
+        "Scaled down to fit. Drag the panel wider or open it in its own window to see it larger.";
+    } else {
+      scaleEl.title = settings.zoom === ZOOM_ACTUAL ? "Shown at the device's real size" : "Zoom";
+    }
   }
 
-  device.style.width = px(Math.floor(m.outerW * scale));
-  device.style.height = px(Math.floor(m.outerH * scale));
-
-  readout.textContent = `${m.w} × ${m.h}`;
-  readout.title = "The size the page lays out at";
-  const isScaled = Math.abs(scale - 1) > 0.004;
-  scaleEl.textContent = isScaled ? `${Math.round(scale * 100)}%` : "";
-  if (scale < wanted - 0.004) {
-    scaleEl.title =
-      "Scaled down to fit. Drag the panel wider or open it in its own window to see it larger.";
-  } else {
-    scaleEl.title = settings.zoom === ZOOM_ACTUAL ? "Shown at the device's real size" : "Zoom";
-  }
+  for (const view of views) view.layoutKeyboard(settings.keyboard);
+  renderRuler();
 }
 
-// A phone browser tints the bar above the page to match it: Safari uses the
-// page's theme colour or background; Chrome on Android uses the theme colour
-// when the page sets one.
-function paintBars() {
-  const m = metrics();
-  const kind = m ? m.spec.bars.kind : "ios";
-  let color = "";
-  if (pageColors) {
-    color = kind === "android" ? pageColors.theme : pageColors.theme || pageColors.background;
-  }
-  if (!color && kind !== "android") color = "#fff";
+// Responsive: no device, just the page. Its width is fixed by the resize grip
+// or fills the stage; its height always fills the stage.
+function layoutResponsive(view, availW, availH) {
+  const roomW = availW - 2 * STAGE_PADDING - HANDLE_WIDTH;
+  const width = settings.responsiveWidth ?? Math.max(1, Math.floor(roomW));
+  const scale = Math.min(1, roomW / width);
+  const height = Math.floor((availH - 2 * STAGE_PADDING) / scale);
+  responsiveWidth = width;
 
-  // Assigning to backgroundColor (not background) means the browser accepts
-  // a colour and nothing else, whatever the page sent.
-  barTop.style.backgroundColor = "";
-  if (color) barTop.style.backgroundColor = color;
+  view.drawResponsive(width, height, scale);
+  view.setLabel("Responsive", `${width} × ${height}`, false);
+  const handle = view.els.handle;
+  handle.hidden = false;
+  handle.setAttribute("aria-valuenow", String(width));
+  handle.setAttribute("aria-valuetext", `${width} pixels`);
 
-  const channels = getComputedStyle(barTop).backgroundColor.match(/[\d.]+/g);
-  let isDark = false;
-  if (channels && channels.length >= 3) {
-    const [r, g, b] = channels.map(Number);
-    isDark = 0.299 * r + 0.587 * g + 0.114 * b < 140;
-  }
-  barTop.classList.toggle("on-dark", isDark);
-
-  // The display itself is black, so its rounded corners blend into the body.
-  // In landscape the page is narrower than the display, and the strips beside
-  // it take the page's colour, as they do on a phone.
-  const hasSideStrips = Boolean(m) && m.framed && m.w < m.screenW;
-  screenEl.style.backgroundColor = hasSideStrips ? pageColors?.background || "#fff" : "";
+  readout.textContent = `${width} × ${height}`;
+  readout.title = settings.responsiveWidth
+    ? "Drag the grip beside the page to change its width. Double-click the grip to fill the panel."
+    : "Fills the panel. Drag the grip beside the page to set a width.";
+  scaleEl.textContent = scale < 0.996 ? `${Math.round(scale * 100)}%` : "";
+  scaleEl.title = "Scaled down to fit";
 }
 
-// The drawn address bars show the mirrored page's host.
-function updateAddress() {
-  const host = siteOf(currentUrl)?.host ?? "";
-  for (const pill of document.querySelectorAll(".pill")) pill.textContent = host;
+function updateControls(main) {
+  rotateButton.disabled = !main || Boolean(main.spec.landscapeOnly);
+  for (const input of zoomInputs) input.disabled = !main;
+  frameToggle.disabled = !main;
+  inAppToggle.disabled = !main;
+  barsToggle.disabled = !main || settings.inApp;
 }
 
-// ---------- on-screen keyboard ----------
-
-function layoutKeyboard() {
-  const m = metrics();
-  const kind = m ? m.spec.bars.kind : "ios";
-  const platform = keyboardPlatform(kind);
-  const layoutName = keyboardState.layout;
-  const landscape = Boolean(m?.rotated);
-  const height = keyboardHeight(kind, layoutName, landscape, m ? m.screenH : stage.clientHeight);
-  const visible = settings.keyboard && keyboardState.open;
-
-  const markupKey = `${platform}-${layoutName}`;
-  if (markupKey !== keyboardMarkupKey) {
-    keyboardEl.innerHTML = KEYBOARD_MARKUP[markupKey]; // fixed markup, see keyboard.js
-    keyboardMarkupKey = markupKey;
-  }
-
-  keyboardEl.className = [
-    platform,
-    layoutName,
-    keyboardHasFoot(kind, landscape) ? "has-foot" : "",
-    landscape ? "landscape" : "",
-    visible ? "open" : "",
-  ].join(" ");
-  keyboardEl.style.height = px(height);
-
-  // The keyboard rises from the bottom of the screen, so it covers the bottom
-  // browser bar first and the page after that.
-  const belowPage = m?.framed ? m.bars.bottom : 0;
-  keyboardInset = visible ? Math.max(0, height - belowPage) : 0;
-}
-
-function setKeyboard(open, layoutName = "text") {
-  keyboardState = { open, layout: layoutName === "numeric" ? "numeric" : "text" };
-  layoutKeyboard();
-  if (open) postToFrame({ type: "keyboard-inset", inset: keyboardInset });
-}
-
-// Clicking the drawing must not take focus away from the page's text field.
-keyboardEl.addEventListener("mousedown", (event) => event.preventDefault());
-
-// ---------- pop-out window sizing ----------
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Resize the pop-out window until the stage is exactly the device's size.
-// Stops after a few passes in case the monitor is too small; scaling covers
-// the rest.
-async function fitWindowToDevice() {
+// The pop-out window resizes itself until the stage fits the devices at 100%.
+// It stops after a few passes in case the monitor is too small; scaling
+// covers the rest.
+async function fitWindowToDevices() {
   if (!IS_POPOUT) return;
   for (let pass = 0; pass < 3; pass++) {
-    const m = metrics();
-    if (!m) return;
-    const dw = m.outerW - stage.clientWidth;
-    const dh = m.outerH - stage.clientHeight;
+    const main = getMetrics(viewSettings(views[0]));
+    let needW;
+    let needH;
+    if (!main) {
+      needW = (settings.responsiveWidth ?? 400) + HANDLE_WIDTH;
+      needH = stage.clientHeight;
+    } else {
+      const sizes = views.map((view) => getMetrics(viewSettings(view)));
+      needW = sizes.reduce((sum, m) => sum + m.outerW, 0) + VIEW_GAP * (sizes.length - 1);
+      needH = Math.max(...sizes.map((m) => m.outerH)) + (sizes.length > 1 ? LABEL_HEIGHT : 0);
+    }
+    const dw = Math.ceil(needW - stage.clientWidth);
+    const dh = Math.ceil(needH - stage.clientHeight);
     if (!dw && !dh) return;
     try {
       const win = await chrome.windows.getCurrent();
@@ -359,11 +279,240 @@ async function fitWindowToDevice() {
   }
 }
 
+// ---------- resizing a responsive page ----------
+
+const SNAP_DISTANCE = 6; // screen pixels
+
+function setUpResizeHandle(view) {
+  const handle = view.els.handle;
+  let drag = null;
+
+  const setWidth = (width) => {
+    settings.responsiveWidth = clampWidth(width);
+    layout();
+  };
+
+  handle.addEventListener("pointerdown", (event) => {
+    drag = { x: event.clientX, width: responsiveWidth, scale: view.scale };
+    handle.setPointerCapture(event.pointerId);
+    handle.classList.add("dragging");
+  });
+  handle.addEventListener("pointermove", (event) => {
+    if (!drag) return;
+    // The page is centred, so its edge moves half as far as its width changes.
+    const width = drag.width + (2 * (event.clientX - drag.x)) / drag.scale;
+    setWidth(
+      event.shiftKey
+        ? width
+        : snapToBreakpoint(width, view.breakpoints.widths, SNAP_DISTANCE / drag.scale),
+    );
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    drag = null;
+    handle.classList.remove("dragging");
+    persist();
+  };
+  handle.addEventListener("pointerup", endDrag);
+  handle.addEventListener("pointercancel", endDrag);
+  handle.addEventListener("dblclick", () => {
+    settings.responsiveWidth = null;
+    persist();
+    layout();
+  });
+  handle.addEventListener("keydown", (event) => {
+    const step = event.shiftKey ? 10 : 1;
+    const direction = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    setWidth(responsiveWidth + direction * step);
+    persist();
+  });
+}
+
+// ---------- breakpoints ----------
+
+const ruler = el("ruler");
+const rulerChips = el("ruler-chips");
+let rulerKey = "";
+
+/** The main page's breakpoints, marking the ones its current width is past. */
+function renderRuler() {
+  const view = views[0];
+  const { widths, unreadable } = view.breakpoints;
+  const pageWidth = view.metrics ? view.metrics.w : responsiveWidth;
+  const comparing = views.length > 1;
+  ruler.hidden = currentUrl === null || widths.length === 0;
+  ruler.title = unreadable
+    ? `${unreadable} stylesheet${unreadable === 1 ? "" : "s"} from another site couldn't be read, so some breakpoints may be missing.`
+    : "";
+
+  const key = `${widths.join(",")}|${pageWidth}|${comparing}`;
+  if (ruler.hidden || key === rulerKey) return;
+  rulerKey = key;
+  rulerChips.replaceChildren(
+    ...widths.map((width) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = `chip${pageWidth >= width ? " active" : ""}`;
+      chip.dataset.width = String(width);
+      chip.textContent = String(width);
+      chip.disabled = comparing;
+      chip.title = comparing
+        ? `The layout changes at ${width}px. Remove the compared devices to jump to a width.`
+        : `The layout changes at ${width}px. Click to see the page at ${width}px; Shift-click for ${width - 1}px, just below.`;
+      return chip;
+    }),
+  );
+}
+
+rulerChips.addEventListener("click", (event) => {
+  const chip = event.target.closest(".chip");
+  if (!chip || views.length > 1) return;
+  settings.preset = RESPONSIVE;
+  settings.responsiveWidth = clampWidth(Number(chip.dataset.width) - (event.shiftKey ? 1 : 0));
+  applyDeviceChange();
+});
+
+// ---------- mobile checks ----------
+
+const checksButton = el("checks-btn");
+const checksMenu = el("checks");
+const checksList = el("checks-list");
+const checksCount = el("checks-count");
+
+const KIND_LABELS = {
+  overflow: "Wider than the screen",
+  "tap-target": "Small touch targets",
+  "input-zoom": "Fields that zoom in on iPhone",
+  "small-text": "Small text",
+};
+
+let checksQueued = false;
+function scheduleChecksRender() {
+  if (checksQueued) return;
+  checksQueued = true;
+  requestAnimationFrame(() => {
+    checksQueued = false;
+    renderChecksBadge();
+    if (!checksMenu.hidden) renderChecksList();
+  });
+}
+
+function renderChecksBadge() {
+  const total = views.reduce((sum, view) => sum + view.issues.length + view.errors.length, 0);
+  const severe = views.some(
+    (view) => view.errors.length || view.issues.some((issue) => issue.severity === "error"),
+  );
+  checksCount.hidden = currentUrl === null || total === 0;
+  checksCount.textContent = total > 99 ? "99+" : String(total);
+  checksCount.classList.toggle("error", severe);
+  checksButton.title = total
+    ? `Mobile checks: ${total} to look at`
+    : "Mobile checks: nothing found on this page";
+}
+
+function checkItem({ severity, title, detail, tag, onClick }) {
+  const item = document.createElement(onClick ? "button" : "div");
+  if (onClick) {
+    item.type = "button";
+    item.addEventListener("click", onClick);
+  }
+  item.className = `check-item${severity === "error" ? " error" : ""}`;
+  const titleEl = document.createElement("b");
+  titleEl.textContent = title;
+  const detailEl = document.createElement("span");
+  detailEl.textContent = detail;
+  if (tag) {
+    const tagEl = document.createElement("i");
+    tagEl.className = "tag";
+    tagEl.textContent = tag;
+    detailEl.append(tagEl);
+  }
+  item.append(titleEl, detailEl);
+  return item;
+}
+
+function groupLabel(text) {
+  const label = document.createElement("div");
+  label.className = "check-group";
+  label.textContent = text;
+  return label;
+}
+
+function renderChecksList() {
+  const nodes = [];
+  for (const view of views) {
+    if (views.length > 1) {
+      const heading = document.createElement("div");
+      heading.className = "check-device";
+      heading.textContent = DEVICES[view.preset]?.name ?? "Responsive";
+      nodes.push(heading);
+    }
+    if (!view.ready && view.url) {
+      nodes.push(
+        Object.assign(document.createElement("div"), {
+          className: "check-empty",
+          textContent: "Checking…",
+        }),
+      );
+      continue;
+    }
+    if (view.issues.length === 0 && view.errors.length === 0) {
+      nodes.push(
+        Object.assign(document.createElement("div"), {
+          className: "check-empty",
+          textContent: "No problems found on this page.",
+        }),
+      );
+      continue;
+    }
+    for (const kind of Object.keys(KIND_LABELS)) {
+      const issues = view.issues.filter((issue) => issue.kind === kind);
+      if (!issues.length) continue;
+      nodes.push(groupLabel(`${KIND_LABELS[kind]} (${issues.length})`));
+      for (const issue of issues) {
+        nodes.push(
+          checkItem({
+            severity: issue.severity,
+            title: issue.label,
+            detail: issue.detail,
+            onClick: () => view.post({ type: "reveal", id: issue.id }),
+          }),
+        );
+      }
+    }
+    if (view.errors.length) {
+      nodes.push(groupLabel(`JavaScript errors (${view.errors.length})`));
+      for (const error of view.errors) {
+        const file = error.source.split(/[?#]/)[0].split("/").pop();
+        // Errors the desktop page did not throw are likely caused by the mobile layout.
+        const mobileOnly = tabErrors !== null && !tabErrors.has(error.message);
+        nodes.push(
+          checkItem({
+            severity: "error",
+            title: error.message,
+            detail: file ? `${file}${error.line ? `:${error.line}` : ""}` : "",
+            tag: mobileOnly ? "Only in the mobile view" : "",
+          }),
+        );
+      }
+    }
+  }
+  checksList.replaceChildren(...nodes);
+}
+
+outlinesToggle.addEventListener("change", () => {
+  settings.outlines = outlinesToggle.checked;
+  persist();
+  for (const view of views) view.post({ type: "outlines", on: settings.outlines });
+});
+
 // ---------- header rules ----------
 // Many sites forbid being shown in a frame, with an X-Frame-Options header or
 // a Content-Security-Policy `frame-ancestors` directive. To mirror them, those
-// headers are removed, but only from responses that load into a mirror view's
-// frame, and only on sites the extension has been granted. Pages in ordinary
+// headers are removed, but only from responses that load into a view's
+// frames, and only on sites the extension has been granted. Pages in ordinary
 // tabs are never touched.
 //
 // declarativeNetRequest can remove a header but not edit one, so the whole
@@ -429,88 +578,95 @@ window.addEventListener("pagehide", () => {
   chrome.runtime.sendMessage({ type: "view-closing" }).catch(() => {});
 });
 
-// ---------- the mirrored page ----------
+// ---------- loading the page ----------
 
-function postToFrame(message) {
-  // The frame's origin changes as it navigates, and these messages carry only
-  // a scroll fraction or a pixel inset, so a wildcard target is acceptable.
-  frame.contentWindow?.postMessage({ source: TAG, ...message }, "*");
-}
-
-function sendScroll() {
-  if (settings.scrollSync) postToFrame({ type: "scroll", frac: lastScrollFraction });
-}
-
-function load(url, { force = false } = {}) {
-  const sameDocument = currentUrl !== null && withoutHash(currentUrl) === withoutHash(url);
+function loadAll(url, { force = false } = {}) {
   currentUrl = url;
-  frame.src = url;
-  updateAddress();
-
-  // A hash-only change does not reload the frame.
-  if (sameDocument && !force) return;
-
-  frameReady = false;
-  pageColors = null;
-  setKeyboard(false);
-  paintBars();
+  for (const view of views) view.load(url, { force, frameName: frameNameFor(view) });
+  setLoading(views.some((view) => !view.ready));
   setStatus("");
-  setLoading(true);
-  clearTimeout(loadTimer);
-  loadTimer = setTimeout(() => {
-    if (frameReady) return;
-    setLoading(false);
-    setStatus("This page didn't load here. Some sites can't be shown inside another page.", {
-      bad: true,
-      action: { label: "Open in a window", run: openInOwnWindow },
-    });
-  }, LOAD_TIMEOUT_MS);
+  updateEmptyState();
+  scheduleChecksRender();
+  layout();
+}
+
+function handleLoadTimeout(view) {
+  setLoading(views.some((other) => other.url && !other.ready && other !== view));
+  if (view !== views[0]) return;
+  setStatus("This page didn't load here. Some sites can't be shown inside another page.", {
+    bad: true,
+    action: { label: "Open in a window", run: openInOwnWindow },
+  });
 }
 
 // For sites that cannot be framed at all: a real browser window at the
 // device's size. It loses the side-by-side view but nothing can block it.
 function openInOwnWindow() {
   if (!currentUrl) return;
-  const m = metrics();
+  const main = getMetrics(viewSettings(views[0]));
   chrome.windows
-    .create({ url: currentUrl, type: "popup", width: m ? m.w : 400, height: m ? m.h : 800 })
+    .create({
+      url: currentUrl,
+      type: "popup",
+      width: main ? main.w : responsiveWidth || 400,
+      height: main ? main.h : 800,
+    })
     .catch((error) => setStatus(`Couldn't open a window: ${error.message}`, { bad: true }));
 }
 
-// Messages from the content script running in the mirrored page.
-window.addEventListener("message", (event) => {
-  if (event.source !== frame.contentWindow) return;
-  const message = event.data;
-  if (!message || message.source !== TAG) return;
+function sendScroll(targets = views) {
+  if (!settings.scrollSync) return;
+  for (const view of targets) view.post({ type: "scroll", frac: lastScrollFraction });
+}
 
-  switch (message.type) {
+// A route change inside a single-page app, reported by the tab. The views
+// change route the same way instead of reloading, when the page allows it.
+function followRoute(url) {
+  if (pinned || !currentUrl || url === currentUrl) return;
+  if (!sameOrigin(url, currentUrl) || views.some((view) => !view.ready)) return; // sync() loads it
+  currentUrl = url;
+  for (const view of views) {
+    view.url = url;
+    view.setAddress(url);
+    view.post({ type: "navigate", url }, { sameOriginOnly: true });
+  }
+}
+
+// Messages from the content script in each view's frame.
+window.addEventListener("message", (event) => {
+  const view = views.find((candidate) => candidate.frameWindow === event.source);
+  const message = event.data;
+  if (!view || !message || message.source !== TAG || typeof message.type !== "string") return;
+
+  const result = view.receive(message);
+  switch (result?.type) {
     case "ready":
-      frameReady = true;
-      clearTimeout(loadTimer);
-      setLoading(false);
-      setStatus("");
-      sendScroll(); // line the fresh page up with the main tab
+      setLoading(views.some((other) => other.url && !other.ready));
+      if (views.every((other) => other.ready) && statusEl.classList.contains("bad")) setStatus("");
+      sendScroll([view]);
+      view.post({ type: "outlines", on: settings.outlines });
+      view.layoutKeyboard(settings.keyboard);
+      if (view === views[0]) takePendingLocate();
+      scheduleChecksRender();
       break;
-    case "colors":
-      pageColors = {
-        theme: cssColorOrNull(message.theme),
-        background: cssColorOrNull(message.background),
-      };
-      paintBars();
+    case "issues":
+    case "error":
+      scheduleChecksRender();
       break;
-    case "keyboard":
-      setKeyboard(Boolean(message.open), message.layout);
+    case "breakpoints":
+      if (view === views[0]) renderRuler();
+      break;
+    case "not-found":
+      if (view === views[0]) {
+        setStatus("That element isn't on the mobile version of the page.", { clearAfter: 4000 });
+      }
+      break;
+    case "navigated":
+      // The page did not react to the route change: load it properly.
+      if (!result.ok) view.load(result.url, { force: true, frameName: frameNameFor(view) });
       break;
   }
 });
-
-// Page-supplied values are only ever used as colours, and only when the
-// browser itself recognises them as one.
-function cssColorOrNull(value) {
-  return typeof value === "string" && value.length <= 64 && CSS.supports("color", value)
-    ? value
-    : null;
-}
 
 // ---------- connection to the mirrored tab ----------
 
@@ -522,10 +678,21 @@ function disconnectTab() {
   }
   tabPort = null;
   tabPortId = null;
+  tabErrors = null;
+}
+
+async function injectContentScripts(tabId) {
+  await chrome.scripting.executeScript({ target: { tabId }, files: ISOLATED_FILES });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: PAGE_WORLD_FILES,
+    world: "MAIN",
+  });
 }
 
 /**
- * Connect to the content script in a tab, to receive its scroll position.
+ * Connect to the content script in a tab, which reports scroll position,
+ * route changes and errors.
  * @param {number} tabId
  * @param {boolean} [injectIfMissing]  A tab that was open before the extension
  *   had access has no content script yet; inject it once and try again.
@@ -542,14 +709,33 @@ function connectTab(tabId, injectIfMissing = true) {
   }
   tabPort = port;
   tabPortId = tabId;
+  tabErrors = new Set();
   let heardFromTab = false;
 
   port.onMessage.addListener((message) => {
     heardFromTab = true;
-    if (port !== tabPort) return;
-    if (message?.type === "scroll" && Number.isFinite(message.frac)) {
-      lastScrollFraction = message.frac;
-      sendScroll();
+    if (port !== tabPort || !message) return;
+    switch (message.type) {
+      case "scroll":
+        if (!Number.isFinite(message.frac)) return;
+        lastScrollFraction = message.frac;
+        sendScroll();
+        break;
+      case "errors":
+        tabErrors = new Set(
+          (Array.isArray(message.items) ? message.items : []).map((error) =>
+            String(error?.message),
+          ),
+        );
+        scheduleChecksRender();
+        break;
+      case "error":
+        tabErrors?.add(String(message.error?.message));
+        scheduleChecksRender();
+        break;
+      case "route":
+        if (typeof message.url === "string") followRoute(message.url);
+        break;
     }
   });
 
@@ -560,9 +746,9 @@ function connectTab(tabId, injectIfMissing = true) {
     if (port !== tabPort) return;
     tabPort = null;
     tabPortId = null;
+    tabErrors = null;
     if (nobodyListening && injectIfMissing) {
-      chrome.scripting
-        .executeScript({ target: { tabId }, files: ["content.js"] })
+      injectContentScripts(tabId)
         .then(() => connectTab(tabId, false))
         .catch(() => {
           // The page does not allow scripts (an error page, the Web Store).
@@ -570,13 +756,6 @@ function connectTab(tabId, injectIfMissing = true) {
     }
   });
 }
-
-// The device's screen must never scroll: its contents are laid out to fit
-// exactly. CSS already forbids it; this puts it back if anything manages to.
-screenEl.addEventListener("scroll", () => {
-  if (screenEl.scrollTop) screenEl.scrollTop = 0;
-  if (screenEl.scrollLeft) screenEl.scrollLeft = 0;
-});
 
 // ---------- following the active tab ----------
 
@@ -588,8 +767,8 @@ const siteLabel = el("site-label");
 const siteToggle = el("site-toggle");
 
 /**
- * Update the two places that show whether the main tab's site is mirrored:
- * the notice over the stage and the switch in View options.
+ * Update the places that show whether the main tab's site is mirrored: the
+ * notice over the stage and the switch in View options.
  *
  * @param {"mirrored" | "not-granted" | "unreadable" | "not-web"} state
  * @param {import("./sites.js").Site | null} site
@@ -597,7 +776,9 @@ const siteToggle = el("site-toggle");
 function showSiteState(state, site) {
   offeredSite = state === "not-granted" ? site : null;
 
-  const showNotice = !pinned && (state === "not-granted" || state === "unreadable");
+  // With no page shown yet, the empty state explains what to do instead.
+  const showNotice =
+    !pinned && (state === "not-granted" || (state === "unreadable" && currentUrl !== null));
   siteNotice.hidden = !showNotice;
   if (state === "not-granted") {
     siteNoticeText.textContent = `Not mirroring ${site.host}`;
@@ -609,7 +790,6 @@ function showSiteState(state, site) {
     siteEnable.hidden = true;
   }
   if (showNotice) setStatus("");
-  if (state === "not-web" && !currentUrl) setStatus("Open a web page to see it here.");
 
   // Sites the user turned on can be turned off again. Localhost is always on.
   const canTurnOff = state === "mirrored" && !isBuiltIn(site);
@@ -620,8 +800,25 @@ function showSiteState(state, site) {
   }
 }
 
+/** Each site remembers the devices last used with it. */
+function applySiteDevices(host) {
+  if (host === currentHost) return;
+  currentHost = host;
+  const remembered = settings.siteDevices[host];
+  if (!remembered) return;
+  const same =
+    remembered.preset === settings.preset &&
+    remembered.rotated === settings.rotated &&
+    remembered.compare.join() === settings.compare.join();
+  if (same) return;
+  settings.preset = remembered.preset;
+  settings.compare = [...remembered.compare];
+  settings.rotated = remembered.rotated;
+  refreshDevices();
+}
+
 let syncRun = 0;
-const scriptConfirmedFor = new Set(); // site patterns known to have the content script
+const scriptConfirmedFor = new Set(); // site patterns known to have the content scripts
 
 async function sync() {
   if (pinned || followWindowId === null) return;
@@ -634,6 +831,7 @@ async function sync() {
     return;
   }
   if (run !== syncRun || !tab) return;
+  followedTabId = tab.id;
 
   // `tab.url` is only present for sites the extension has access to.
   const site = siteOf(tab.url);
@@ -652,7 +850,7 @@ async function sync() {
     return;
   }
 
-  // Localhost has the content script from the manifest. Other sites get it
+  // Localhost has the content scripts from the manifest. Other sites get them
   // registered when access is granted, which may still be in progress.
   if (!isBuiltIn(site) && !scriptConfirmedFor.has(site.pattern)) {
     await contentScriptReady();
@@ -661,11 +859,21 @@ async function sync() {
   }
 
   showSiteState("mirrored", site);
+  applySiteDevices(site.host);
+
   if (tab.url !== currentUrl) {
-    if (currentUrl === null || withoutHash(tab.url) !== withoutHash(currentUrl)) {
-      lastScrollFraction = 0;
+    // Give the tab's own report of a same-document route change a moment to
+    // arrive; followRoute() then handles it without a reload.
+    if (currentUrl && tabPortId === tab.id && sameOrigin(tab.url, currentUrl)) {
+      await sleep(SAME_DOCUMENT_GRACE_MS);
+      if (run !== syncRun) return;
     }
-    load(tab.url);
+    if (tab.url !== currentUrl) {
+      if (currentUrl === null || withoutHash(tab.url) !== withoutHash(currentUrl)) {
+        lastScrollFraction = 0;
+      }
+      loadAll(tab.url);
+    }
   }
   connectTab(tab.id);
 }
@@ -677,7 +885,7 @@ async function reloadIfStillOnSamePage(tabId) {
   try {
     const tab = await chrome.tabs.get(tabId);
     if (tab.active && tab.windowId === followWindowId && tab.url === currentUrl) {
-      load(currentUrl, { force: true });
+      loadAll(currentUrl, { force: true });
     }
   } catch {
     // The tab closed.
@@ -718,41 +926,126 @@ siteToggle.addEventListener("change", async () => {
   sync();
 });
 
-// ---------- controls ----------
+// ---------- "Show in Sidephone" and keyboard shortcuts ----------
 
-function applyDeviceChange() {
-  persist();
-  layout();
-  fitWindowToDevice();
+const cleanLocator = (locator) =>
+  locator && typeof locator === "object"
+    ? Object.fromEntries(
+        ["path", "id", "testId", "tag", "text"].map((key) => [
+          key,
+          typeof locator[key] === "string" ? locator[key].slice(0, 500) : "",
+        ]),
+      )
+    : null;
+
+function locate(locator) {
+  const clean = cleanLocator(locator);
+  if (!clean || !currentUrl) return;
+  for (const view of views) view.post({ type: "locate", locator: clean }, { sameOriginOnly: true });
 }
 
-presetSelect.addEventListener("change", () => {
-  settings.preset = presetSelect.value;
-  syncDeviceMenu();
-  applyDeviceChange();
+// A view opened by the context menu asks for the request once its page is in.
+async function takePendingLocate() {
+  if (followedTabId === null) return;
+  const locator = await chrome.runtime
+    .sendMessage({ type: "take-pending-locate", tabId: followedTabId })
+    .catch(() => null);
+  if (locator) locate(locator);
+}
+
+function runCommand(command) {
+  if (command === "rotate") rotate();
+  else if (command === "next-device") stepDevice(1);
+  else if (command === "previous-device") stepDevice(-1);
+}
+
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender.id !== chrome.runtime.id || !message) return;
+  if (message.type === "locate" && message.tabId === followedTabId && !pinned) {
+    locate(message.locator);
+  }
+  if (message.type === "command" && (message.windowId ?? followWindowId) === followWindowId) {
+    runCommand(message.command);
+  }
 });
 
-rotateButton.addEventListener("click", () => {
+// Shortcuts inside the panel itself.
+document.addEventListener("keydown", (event) => {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.target.closest?.("input, textarea, select, [contenteditable], .resize-handle")) return;
+  const command = { r: "rotate", R: "rotate", "]": "next-device", "[": "previous-device" }[
+    event.key
+  ];
+  if (!command) return;
+  event.preventDefault();
+  runCommand(command);
+});
+
+el("shortcuts-btn").addEventListener("click", () => {
+  chrome.tabs.create({ url: "chrome://extensions/shortcuts" }).catch(() => {});
+});
+
+// ---------- controls ----------
+
+/** Apply a change of device, rotation or comparison to everything that shows it. */
+function refreshDevices() {
+  // Comparing needs real devices; the main one cannot be responsive then.
+  if (settings.compare.length && settings.preset === RESPONSIVE) settings.preset = DEFAULT_DEVICE;
+  persist();
+  syncViews();
+  syncDeviceMenu();
+  layout();
+  scheduleChecksRender();
+  fitWindowToDevices();
+}
+
+function applyDeviceChange() {
+  if (currentHost) rememberSiteDevice(settings, currentHost);
+  refreshDevices();
+}
+
+function rotate() {
+  if (rotateButton.disabled) return;
   settings.rotated = !settings.rotated;
   applyDeviceChange();
-});
+}
+
+function stepDevice(step) {
+  settings.preset = cycleDevice(isDevice(settings.preset) ? settings.preset : "", step);
+  applyDeviceChange();
+}
+
+function removeCompared(index) {
+  if (index < 1) return;
+  settings.compare.splice(index - 1, 1);
+  applyDeviceChange();
+}
+
+rotateButton.addEventListener("click", rotate);
 
 frameToggle.addEventListener("change", () => {
   settings.deviceFrame = frameToggle.checked;
-  applyDeviceChange();
+  refreshDevices();
 });
 
 barsToggle.addEventListener("change", () => {
   settings.browserBars = barsToggle.checked;
-  applyDeviceChange();
+  refreshDevices();
+});
+
+inAppToggle.addEventListener("change", () => {
+  settings.inApp = inAppToggle.checked;
+  refreshDevices(); // also reloads frames that now need a different user agent
 });
 
 keyboardToggle.addEventListener("change", () => {
   settings.keyboard = keyboardToggle.checked;
   persist();
-  layoutKeyboard();
-  if (settings.keyboard && keyboardState.open) {
-    postToFrame({ type: "keyboard-inset", inset: keyboardInset });
+  for (const view of views) {
+    view.layoutKeyboard(settings.keyboard);
+    if (settings.keyboard && view.keyboardState.open) {
+      view.post({ type: "keyboard-inset", inset: view.keyboardInset });
+    }
   }
 });
 
@@ -789,22 +1082,29 @@ function checkZoomInput() {
 
 popoutButton.addEventListener("click", async () => {
   if (followWindowId === null) return;
-  const m = metrics();
   const query = new URLSearchParams({
     popout: "1",
     win: String(followWindowId),
     preset: settings.preset,
+    compare: settings.compare.join(","),
     rotated: settings.rotated ? "1" : "0",
     bars: settings.browserBars ? "1" : "0",
     frame: settings.deviceFrame ? "1" : "0",
+    inapp: settings.inApp ? "1" : "0",
+    width: String(settings.responsiveWidth ?? ""),
   });
+  const sizes = views.map((view) => getMetrics(viewSettings(view)));
+  const width = sizes.every(Boolean)
+    ? sizes.reduce((sum, m) => sum + m.outerW, 0) + VIEW_GAP * (sizes.length - 1)
+    : (settings.responsiveWidth ?? 400) + HANDLE_WIDTH;
+  const height = sizes.every(Boolean) ? Math.max(...sizes.map((m) => m.outerH)) : 800;
   try {
-    // A rough first size; the pop-out then fits itself to the device exactly.
+    // A rough first size; the pop-out then fits itself to the devices exactly.
     await chrome.windows.create({
       url: chrome.runtime.getURL(`panel/panel.html?${query}`),
       type: "popup",
-      width: (m ? m.outerW : 430) + 16,
-      height: (m ? m.outerH : 800) + 80,
+      width: Math.round(width) + 16,
+      height: Math.round(height) + 120,
     });
   } catch (error) {
     setStatus(`Couldn't open the window: ${error.message}`, { bad: true });
@@ -830,15 +1130,15 @@ function updateCalibrationNote() {
 
 function drawCalibrationCard() {
   const pxPerMm = Number(calibrationSlider.value);
-  calibrationCard.style.width = px(CARD_MM.short * pxPerMm);
-  calibrationCard.style.height = px(CARD_MM.long * pxPerMm);
-  calibrationCard.style.borderRadius = px(CARD_MM.radius * pxPerMm);
+  calibrationCard.style.width = `${CARD_MM.short * pxPerMm}px`;
+  calibrationCard.style.height = `${CARD_MM.long * pxPerMm}px`;
+  calibrationCard.style.borderRadius = `${CARD_MM.radius * pxPerMm}px`;
 }
 
 calibrationSlider.addEventListener("input", drawCalibrationCard);
 
 el("cal-btn").addEventListener("click", () => {
-  toggleSettings(false);
+  closeMenus();
   calibrationSlider.value = String(settings.pxPerMm || DEFAULT_PX_PER_MM);
   drawCalibrationCard();
   calibration.hidden = false;
@@ -858,19 +1158,29 @@ el("cal-save").addEventListener("click", () => {
   layout();
 });
 
-// ---------- menus: device list and view options ----------
-// The native <select> stays in the page, hidden, as the form control that
-// holds the chosen device. The visible list is built from the same data.
+// ---------- menus: device list, checks and view options ----------
 
 const deviceButton = el("device-btn");
 const deviceMenu = el("device-menu");
 const deviceName = el("device-name");
 const settingsButton = el("settings-btn");
 const settingsMenu = el("settings");
+
+/** Which device the device menu changes: an index into `views`, or "add". */
+let menuTarget = 0;
+let menuAnchor = deviceButton;
+
 const CHECK_ICON =
   '<svg class="check" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7"/></svg>';
+const PLUS_ICON =
+  '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>';
 
-function buildDeviceList() {
+function buildDeviceMenu() {
+  const title = document.createElement("div");
+  title.className = "menu-label menu-title";
+  title.textContent = "Compare with";
+  deviceMenu.append(title);
+
   const addItem = (value, name, size) => {
     const item = document.createElement("button");
     item.type = "button";
@@ -883,7 +1193,7 @@ function buildDeviceList() {
     sizeEl.className = "dims";
     sizeEl.textContent = size;
     item.append(nameEl, sizeEl);
-    item.insertAdjacentHTML("beforeend", CHECK_ICON);
+    item.insertAdjacentHTML("beforeend", CHECK_ICON); // fixed markup
     deviceMenu.append(item);
   };
 
@@ -893,61 +1203,113 @@ function buildDeviceList() {
     label.className = "menu-label";
     label.textContent = group.label;
     deviceMenu.append(label);
-
-    const optgroup = document.createElement("optgroup");
-    optgroup.label = group.label;
     for (const id of group.ids) {
       const { name, w, h } = DEVICES[id];
       addItem(id, name, `${w} × ${h}`);
-      optgroup.append(new Option(name, id));
     }
-    presetSelect.append(optgroup);
   }
+
+  const separator = document.createElement("div");
+  separator.className = "menu-sep";
+  const add = document.createElement("button");
+  add.type = "button";
+  add.className = "item action";
+  add.dataset.action = "add";
+  add.insertAdjacentHTML("afterbegin", PLUS_ICON); // fixed markup
+  const addLabel = document.createElement("span");
+  addLabel.textContent = "Compare with another device";
+  add.append(addLabel);
+  add.title = "Show another device beside this one. Each loads its own copy of the page.";
+  deviceMenu.append(separator, add);
 }
 
 function syncDeviceMenu() {
   deviceName.textContent = DEVICES[settings.preset]?.name ?? "Responsive";
-  for (const item of deviceMenu.querySelectorAll(".item")) {
-    item.setAttribute("aria-selected", String(item.dataset.value === settings.preset));
-  }
 }
 
-function toggleDeviceMenu(open) {
-  deviceMenu.hidden = !open;
-  deviceButton.setAttribute("aria-expanded", String(open));
-  if (open) {
-    toggleSettings(false);
-    const current = deviceMenu.querySelector('.item[aria-selected="true"]');
-    (current ?? deviceMenu.querySelector(".item")).focus();
+function openDeviceMenu(target, anchor = deviceButton) {
+  menuTarget = target;
+  menuAnchor = anchor;
+  const adding = target === "add";
+  const selected = adding ? null : views[target]?.preset;
+  for (const item of deviceMenu.querySelectorAll(".item[data-value]")) {
+    item.setAttribute("aria-selected", String(item.dataset.value === selected));
   }
+  const canBeResponsive = target === 0 && settings.compare.length === 0;
+  deviceMenu.querySelector(`[data-value="${RESPONSIVE}"]`).hidden = !canBeResponsive;
+  const canAdd = target === 0 && settings.compare.length < MAX_COMPARE;
+  deviceMenu.querySelector("[data-action=add]").hidden = !canAdd;
+  deviceMenu.querySelector(".menu-sep").hidden = !canAdd;
+  deviceMenu.querySelector(".menu-title").hidden = !adding;
+
+  // Open under whatever was clicked: the toolbar button or a device's name.
+  const rect = anchor.getBoundingClientRect();
+  deviceMenu.style.top = `${Math.round(rect.bottom + 4)}px`;
+  deviceMenu.style.left = `${Math.round(Math.max(6, Math.min(rect.left, innerWidth - 270)))}px`;
+
+  toggleSettings(false);
+  toggleChecks(false);
+  deviceMenu.hidden = false;
+  deviceButton.setAttribute("aria-expanded", String(anchor === deviceButton));
+  const current = deviceMenu.querySelector('.item[aria-selected="true"]');
+  (current ?? deviceMenu.querySelector(".item:not([hidden])")).focus();
+}
+
+function closeDeviceMenu() {
+  deviceMenu.hidden = true;
+  deviceButton.setAttribute("aria-expanded", "false");
 }
 
 function toggleSettings(open) {
   settingsMenu.hidden = !open;
   settingsButton.setAttribute("aria-expanded", String(open));
-  if (open) toggleDeviceMenu(false);
+  if (open) {
+    closeDeviceMenu();
+    toggleChecks(false);
+  }
+}
+
+function toggleChecks(open) {
+  checksMenu.hidden = !open;
+  checksButton.setAttribute("aria-expanded", String(open));
+  if (open) {
+    closeDeviceMenu();
+    toggleSettings(false);
+    renderChecksList();
+  }
 }
 
 function closeMenus() {
-  toggleDeviceMenu(false);
+  closeDeviceMenu();
   toggleSettings(false);
+  toggleChecks(false);
 }
 
-deviceButton.addEventListener("click", () => toggleDeviceMenu(deviceMenu.hidden));
+deviceButton.addEventListener("click", () =>
+  deviceMenu.hidden || menuAnchor !== deviceButton ? openDeviceMenu(0) : closeDeviceMenu(),
+);
 settingsButton.addEventListener("click", () => toggleSettings(settingsMenu.hidden));
+checksButton.addEventListener("click", () => toggleChecks(checksMenu.hidden));
 
 deviceMenu.addEventListener("click", (event) => {
   const item = event.target.closest(".item");
   if (!item) return;
-  presetSelect.value = item.dataset.value;
-  presetSelect.dispatchEvent(new Event("change"));
-  toggleDeviceMenu(false);
-  deviceButton.focus();
+  if (item.dataset.action === "add") {
+    openDeviceMenu("add", menuAnchor);
+    return;
+  }
+  const value = item.dataset.value;
+  if (menuTarget === "add") settings.compare.push(value);
+  else if (menuTarget === 0) settings.preset = value;
+  else settings.compare[menuTarget - 1] = value;
+  closeDeviceMenu();
+  menuAnchor.focus();
+  applyDeviceChange();
 });
 
 // Arrow keys move through the device list.
 deviceMenu.addEventListener("keydown", (event) => {
-  const items = [...deviceMenu.querySelectorAll(".item")];
+  const items = [...deviceMenu.querySelectorAll(".item:not([hidden])")];
   const index = items.indexOf(document.activeElement);
   const targets = {
     ArrowDown: (index + 1) % items.length,
@@ -961,27 +1323,30 @@ deviceMenu.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("pointerdown", (event) => {
-  const inside = [deviceMenu, deviceButton, settingsMenu, settingsButton].some((node) =>
-    node.contains(event.target),
-  );
+  const inside = [deviceMenu, settingsMenu, checksMenu, deviceButton, settingsButton, checksButton]
+    .concat(views.map((view) => view.els.name))
+    .some((node) => node.contains(event.target));
   if (!inside) closeMenus();
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (!deviceMenu.hidden) {
-    toggleDeviceMenu(false);
-    deviceButton.focus();
+    closeDeviceMenu();
+    menuAnchor.focus();
   } else if (!settingsMenu.hidden) {
     toggleSettings(false);
     settingsButton.focus();
+  } else if (!checksMenu.hidden) {
+    toggleChecks(false);
+    checksButton.focus();
   }
 });
 
-// Clicking into the mirrored page moves focus into its frame, which this
+// Clicking into a mirrored page moves focus into its frame, which this
 // document only sees as losing focus.
 window.addEventListener("blur", () => {
-  if (document.activeElement === frame) closeMenus();
+  if (document.activeElement?.tagName === "IFRAME") closeMenus();
 });
 
 // ---------- startup ----------
@@ -1003,15 +1368,20 @@ async function findOwnWindowId() {
 }
 
 async function start() {
-  buildDeviceList();
-  presetSelect.value = settings.preset;
+  if (settings.compare.length && settings.preset === RESPONSIVE) settings.preset = DEFAULT_DEVICE;
+  buildDeviceMenu();
+  syncViews();
   syncDeviceMenu();
   scrollToggle.checked = settings.scrollSync;
   barsToggle.checked = settings.browserBars;
   frameToggle.checked = settings.deviceFrame;
   keyboardToggle.checked = settings.keyboard;
+  inAppToggle.checked = settings.inApp;
+  outlinesToggle.checked = settings.outlines;
   checkZoomInput();
   updateCalibrationNote();
+  updateEmptyState();
+  renderChecksBadge();
   new ResizeObserver(layout).observe(stage);
   layout();
 
@@ -1025,7 +1395,7 @@ async function start() {
     document.body.classList.add("popout");
     const windowId = Number(params.get("win"));
     followWindowId = Number.isInteger(windowId) ? windowId : null;
-    await fitWindowToDevice();
+    await fitWindowToDevices();
   } else {
     followWindowId = await findOwnWindowId();
   }

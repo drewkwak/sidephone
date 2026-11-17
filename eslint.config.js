@@ -19,7 +19,7 @@ export default [
   },
   {
     // The content script is a classic script: it cannot import modules.
-    files: ["src/content.js"],
+    files: ["src/content/**/*.js"],
     languageOptions: { sourceType: "script", globals: { ...globals.browser, chrome: "readonly" } },
   },
   {

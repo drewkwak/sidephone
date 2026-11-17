@@ -35,10 +35,14 @@ await build({
   format: "esm",
 });
 
-// The content script and service worker are single classic scripts.
+// The content scripts and the service worker are classic scripts, each kept
+// as its own file at the same path.
 await build({
   ...shared,
-  entryPoints: [path.join(src, "content.js"), path.join(src, "background.js")],
+  entryPoints: ["background.js", "content/checks.js", "content/main.js", "content/page.js"].map(
+    (file) => path.join(src, file),
+  ),
+  outbase: src,
   outdir: out,
 });
 

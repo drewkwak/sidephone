@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Sidephone - See mobile and desktop side by side",
   "short_name": "Sidephone",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Your page at phone size in the side panel, next to the desktop version. Follows your tab as you work. Built for local development.",
   "minimum_chrome_version": "116",
   "incognito": "split",
@@ -25,15 +25,46 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["sidePanel", "activeTab", "scripting", "declarativeNetRequestWithHostAccess"],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Open Sidephone"
+    },
+    "rotate": {
+      "suggested_key": { "default": "Alt+Shift+R" },
+      "description": "Rotate the device"
+    },
+    "next-device": {
+      "suggested_key": { "default": "Alt+Shift+Period" },
+      "description": "Next device"
+    },
+    "previous-device": {
+      "suggested_key": { "default": "Alt+Shift+Comma" },
+      "description": "Previous device"
+    }
+  },
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "scripting",
+    "contextMenus",
+    "declarativeNetRequestWithHostAccess"
+  ],
   "host_permissions": ["*://localhost/*", "*://*.localhost/*", "*://127.0.0.1/*"],
   "optional_host_permissions": ["*://*/*"],
   "content_scripts": [
     {
       "matches": ["*://localhost/*", "*://*.localhost/*", "*://127.0.0.1/*"],
-      "js": ["content.js"],
+      "js": ["content/checks.js", "content/main.js"],
       "all_frames": true,
       "run_at": "document_start"
+    },
+    {
+      "matches": ["*://localhost/*", "*://*.localhost/*", "*://127.0.0.1/*"],
+      "js": ["content/page.js"],
+      "all_frames": true,
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ]
 }

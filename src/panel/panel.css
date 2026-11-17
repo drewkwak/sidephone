@@ -15,6 +15,7 @@
   --pill: #e3e3e9;
   --body-edge: #1d1d20;
   --bad: #d1372d;
+  --warn: #b86e00;
   --pop:
     0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 3px 8px rgba(0, 0, 0, 0.07), 0 14px 32px rgba(0, 0, 0, 0.13);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 14px 40px rgba(0, 0, 0, 0.16);
@@ -37,6 +38,7 @@
     --pill: #2c2c30;
     --body-edge: rgba(255, 255, 255, 0.13);
     --bad: #ff7a70;
+    --warn: #f0b44c;
     --pop:
       0 0 0 0.5px rgba(0, 0, 0, 0.6), 0 3px 8px rgba(0, 0, 0, 0.3), 0 16px 40px rgba(0, 0, 0, 0.5);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 16px 44px rgba(0, 0, 0, 0.55);
@@ -305,6 +307,52 @@ body.loading #progress::after {
 #settings {
   right: 6px;
   width: min(248px, calc(100vw - 12px));
+}
+
+#checks {
+  right: 6px;
+  width: min(320px, calc(100vw - 12px));
+  padding-bottom: 6px;
+}
+
+.menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 8px;
+  font-weight: 600;
+}
+
+.inline-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 400;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* The device menu's last item: add a device to compare. */
+.item.action {
+  color: var(--accent);
+}
+
+.item[hidden],
+.menu-sep[hidden],
+.menu-label[hidden] {
+  display: none;
+}
+
+.item.action svg {
+  flex: 0 0 auto;
+}
+
+.menu-sep {
+  height: 1px;
+  margin: 4px -4px;
+  background: var(--line);
 }
 
 .menu-label {
@@ -644,6 +692,208 @@ body.popout #cal-row {
   font-size: 12.5px;
 }
 
+/* ---------- toolbar badge ---------- */
+
+#checks-btn {
+  position: relative;
+}
+
+.badge {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: var(--warn);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.badge.error {
+  background: var(--bad);
+}
+
+.badge[hidden] {
+  display: none;
+}
+
+/* ---------- mobile checks list ---------- */
+
+.check-group {
+  padding: 6px 8px 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.check-device {
+  padding: 8px 8px 0;
+  font-weight: 600;
+}
+
+.check-item {
+  display: grid;
+  grid-template-columns: 8px 1fr;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 5px 8px;
+  text-align: left;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-radius: 5px;
+}
+
+button.check-item {
+  cursor: pointer;
+}
+
+button.check-item:hover,
+button.check-item:focus-visible {
+  outline: none;
+  background: var(--hover);
+}
+
+.check-item::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.check-item.error::before {
+  background: var(--bad);
+}
+
+.check-item b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+}
+
+.check-item span {
+  grid-column: 2;
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.check-item .tag {
+  display: inline-block;
+  font-style: normal;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+.check-empty {
+  padding: 10px 8px;
+  color: var(--muted);
+}
+
+/* ---------- breakpoints ---------- */
+
+#ruler {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+#ruler[hidden] {
+  display: none;
+}
+
+.ruler-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#ruler-chips {
+  display: flex;
+  gap: 4px;
+}
+
+.chip {
+  flex: 0 0 auto;
+  height: 20px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: var(--control);
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--fg);
+  background: var(--active);
+}
+
+/* Breakpoints the page is currently past: their min-width rules apply. */
+.chip.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---------- empty state ---------- */
+
+#empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 280px;
+  padding: 0 16px;
+  text-align: center;
+  color: var(--fg);
+}
+
+#empty[hidden] {
+  display: none;
+}
+
+#empty svg {
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+
+#empty h1 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#empty p {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
 /* ---------- stage and device ---------- */
 
 #stage {
@@ -656,44 +906,201 @@ body.popout #cal-row {
   position: relative;
 }
 
-#device {
+#views {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 16px;
+}
+
+body.empty #views,
+body.empty #ruler {
+  display: none;
+}
+
+body.empty #readout,
+body.empty #scale {
+  visibility: hidden;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.view-label {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 26px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+#views.compare .view-label {
+  display: flex;
+}
+
+.view-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 6px;
+  font-weight: 500;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.view-name:hover {
+  background: var(--hover);
+}
+
+.view-size {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.view-remove {
+  width: 22px;
+  height: 22px;
+}
+
+.view-remove[hidden] {
+  display: none;
+}
+
+.view-body {
+  display: flex;
+  align-items: center;
+}
+
+.device {
   flex: 0 0 auto;
 }
 
-#shell {
+/* Responsive mode: a grip on the right edge sets the page's width. */
+.resize-handle {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 56px;
+  margin-left: 4px;
+  border-radius: 6px;
+  background:
+    linear-gradient(var(--muted), var(--muted)) 4px 50% / 1.5px 24px no-repeat,
+    linear-gradient(var(--muted), var(--muted)) 7px 50% / 1.5px 24px no-repeat;
+  opacity: 0.55;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.resize-handle:hover,
+.resize-handle.dragging {
+  background-color: var(--hover);
+  opacity: 1;
+}
+
+.resize-handle[hidden] {
+  display: none;
+}
+
+.shell {
   position: relative;
   transform-origin: 0 0;
 }
 
-#shell.boxed {
+.shell.boxed {
   box-shadow: 0 0 0 1px var(--line);
 }
 
 /* The phone's body. A thin outer ring gives it an edge against a dark stage;
    drawn outside the body so it stays smooth around the corners. */
-#shell.framed {
+.shell.framed {
   background: #08080a;
   box-shadow:
     0 0 0 1px var(--body-edge),
     var(--shadow);
 }
 
-#screen {
+.screen {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   overflow: clip; /* clip, not hidden: nothing may scroll this, not even a script */
-  /* Black like an unlit display, so the anti-aliased edge of the rounded
-     corners blends into the body. A lighter colour shows as a pale outline. */
-  background: #000;
+  /* The screen is filled with the page's colour (set by view.js), so no seam
+     can open between the bars and the page when the device is scaled. A thin
+     black ring inside the edge keeps the rounded corners blending into the
+     body instead of showing a pale outline. */
+  background: #fff;
+  box-shadow: inset 0 0 0 1.5px #000;
 }
 
-#frame {
-  display: block;
+.viewport {
+  position: relative;
   flex: 0 0 auto;
+  overflow: clip;
+}
+
+.frame {
+  display: block;
   border: 0;
   background: #fff;
+}
+
+/* Outlines of layout problems, drawn over the page rather than in it. */
+.outlines {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  pointer-events: none;
+}
+
+.outline {
+  position: absolute;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 2px var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+
+.outline.error {
+  box-shadow: inset 0 0 0 2px var(--bad);
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+}
+
+.flash {
+  position: absolute;
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent);
+  animation: flash 1.4s ease-out forwards;
+}
+
+@keyframes flash {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash {
+    animation-duration: 1.4s;
+    animation-timing-function: steps(1, end);
+  }
 }
 
 .bar {
@@ -708,23 +1115,23 @@ body.popout #cal-row {
 
 /* The top bar takes the page's colour, like a phone browser does. Ink and
    address field adapt to whether that colour is light or dark. */
-#bar-top {
+.bar-top {
   --ink: #000;
   --field: rgba(118, 118, 128, 0.14);
   color: var(--ink);
 }
 
-#bar-top.on-dark {
+.bar-top.on-dark {
   --ink: #fff;
   --field: rgba(235, 235, 245, 0.18);
 }
 
-#bar-top .pill {
+.bar-top .pill {
   color: var(--ink);
   background: var(--field);
 }
 
-#statusbar {
+.statusbar {
   position: absolute;
   top: 0;
   left: 0;
@@ -737,7 +1144,7 @@ body.popout #cal-row {
   font-variant-numeric: tabular-nums;
 }
 
-#statusbar[hidden] {
+.statusbar[hidden] {
   display: none;
 }
 
@@ -755,7 +1162,7 @@ body.popout #cal-row {
   display: none;
 }
 
-#bar-bottom.tools {
+.bar-bottom.tools {
   padding-top: 0;
   align-items: stretch;
   border-top: 1px solid rgba(60, 60, 67, 0.18);
@@ -764,17 +1171,17 @@ body.popout #cal-row {
 .bar[hidden],
 .pill[hidden],
 .indicator[hidden],
-#cutout[hidden],
-#home-button[hidden] {
+.cutout[hidden],
+.home-button[hidden] {
   display: none;
 }
 
-#bar-top {
+.bar-top {
   align-items: flex-end;
   padding-bottom: 6px;
 }
 
-#bar-bottom {
+.bar-bottom {
   align-items: flex-start;
   padding-top: 6px;
 }
@@ -794,6 +1201,18 @@ body.popout #cal-row {
   text-overflow: ellipsis;
 }
 
+.bar-bottom.in-app {
+  background: #fff;
+}
+
+.bar-bottom.in-app .indicator {
+  background: #000;
+}
+
+.bar-bottom.in-app.on-dark .indicator {
+  background: #fff;
+}
+
 .indicator {
   position: absolute;
   left: 50%;
@@ -806,7 +1225,7 @@ body.popout #cal-row {
   opacity: 0.8;
 }
 
-#cutout {
+.cutout {
   position: absolute;
   z-index: 4; /* hardware: stays above the keyboard too */
   border-radius: 999px;
@@ -814,7 +1233,7 @@ body.popout #cal-row {
   pointer-events: none;
 }
 
-#keyboard {
+.keyboard {
   --kb-bg: #d1d3d9;
   --kb-key: #ffffff;
   --kb-fn: #abb1bb;
@@ -843,13 +1262,13 @@ body.popout #cal-row {
     visibility 0s 0.25s;
 }
 
-#keyboard.open {
+.keyboard.open {
   visibility: visible;
   transform: none;
   transition: transform 0.25s ease;
 }
 
-#keyboard.android {
+.keyboard.android {
   --kb-bg: #eef1f6;
   --kb-fn: #d3d9e3;
   --kb-shadow: transparent;
@@ -859,7 +1278,7 @@ body.popout #cal-row {
 }
 
 @media (prefers-color-scheme: dark) {
-  #keyboard {
+  .keyboard {
     --kb-bg: #2a2a2c;
     --kb-key: #6a6a6d;
     --kb-fn: #464648;
@@ -869,7 +1288,7 @@ body.popout #cal-row {
     --kb-icon: #d2d2d6;
   }
 
-  #keyboard.android {
+  .keyboard.android {
     --kb-bg: #1f2023;
     --kb-key: #3d4045;
     --kb-fn: #2d2f33;
@@ -878,8 +1297,8 @@ body.popout #cal-row {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #keyboard,
-  #keyboard.open {
+  .keyboard,
+  .keyboard.open {
     transition: none;
   }
 }
@@ -904,11 +1323,11 @@ body.popout #cal-row {
   border-left: 1px solid var(--kb-line);
 }
 
-#keyboard.android .kb-suggest {
+.keyboard.android .kb-suggest {
   flex-basis: 40px;
 }
 
-#keyboard.landscape .kb-suggest {
+.keyboard.landscape .kb-suggest {
   flex-basis: 34px;
 }
 
@@ -922,7 +1341,7 @@ body.popout #cal-row {
   padding: 6px 3px 3px;
 }
 
-#keyboard.landscape .kb-keys {
+.keyboard.landscape .kb-keys {
   gap: 7px;
   padding-top: 3px;
 }
@@ -956,7 +1375,7 @@ body.popout #cal-row {
   font-size: 22.5px;
 }
 
-#keyboard.landscape .key.letter {
+.keyboard.landscape .key.letter {
   font-size: 19px;
 }
 
@@ -1020,8 +1439,8 @@ body.popout #cal-row {
   letter-spacing: 2px;
 }
 
-#keyboard.android .key.digit small,
-#keyboard.landscape .key.digit small {
+.keyboard.android .key.digit small,
+.keyboard.landscape .key.digit small {
   display: none;
 }
 
@@ -1040,30 +1459,30 @@ body.popout #cal-row {
   display: none;
 }
 
-#keyboard.has-foot.ios .kb-foot {
+.keyboard.has-foot.ios .kb-foot {
   flex-basis: 78px;
 }
 
-#keyboard.has-foot.android .kb-foot {
+.keyboard.has-foot.android .kb-foot {
   flex-basis: 22px;
 }
 
-#keyboard.has-foot.ios .kb-foot span {
+.keyboard.has-foot.ios .kb-foot span {
   display: block;
   position: absolute;
   top: 12px;
   color: var(--kb-icon);
 }
 
-#keyboard.has-foot.ios .kb-foot span:first-child {
+.keyboard.has-foot.ios .kb-foot span:first-child {
   left: 26px;
 }
 
-#keyboard.has-foot.ios .kb-foot span:last-child {
+.keyboard.has-foot.ios .kb-foot span:last-child {
   right: 26px;
 }
 
-#keyboard.has-foot .kb-foot::after {
+.keyboard.has-foot .kb-foot::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -1075,7 +1494,7 @@ body.popout #cal-row {
   background: var(--kb-ink);
 }
 
-#home-button {
+.home-button {
   position: absolute;
   width: 46px;
   height: 46px;

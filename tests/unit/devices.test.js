@@ -3,6 +3,8 @@ import { test } from "node:test";
 
 import {
   DEFAULT_DEVICE,
+  DEVICE_ORDER,
+  cycleDevice,
   DEVICES,
   DEVICE_GROUPS,
   RESPONSIVE,
@@ -102,4 +104,29 @@ test("real size is smaller than 100% on an ordinary monitor", () => {
   assert.ok(scale > 0.6 && scale < 1, String(scale));
   // A denser monitor needs less shrinking.
   assert.ok(realSizeScale(DEVICES["iphone-16"], 6) > scale);
+});
+
+test("in-app mode leaves only the system's bars", () => {
+  const browser = getMetrics({ ...base, preset: "iphone-16" });
+  const app = getMetrics({ ...base, preset: "iphone-16", inApp: true });
+  assert.deepEqual([app.w, app.h], [393, 852 - 59 - 34]);
+  assert.ok(app.h > browser.h);
+  const android = getMetrics({ ...base, preset: "pixel-9", inApp: true });
+  assert.equal(android.h, 924 - 58 - 26);
+});
+
+test("in-app mode fills the screen exactly in every orientation", () => {
+  for (const id of Object.keys(DEVICES)) {
+    for (const rotated of [false, true]) {
+      const m = getMetrics({ ...base, preset: id, rotated, inApp: true });
+      assert.equal(m.bars.top + m.h + m.bars.bottom, m.sh, `${id} rotated=${rotated}`);
+    }
+  }
+});
+
+test("devices cycle in menu order and wrap around", () => {
+  assert.equal(cycleDevice(DEVICE_ORDER[0], 1), DEVICE_ORDER[1]);
+  assert.equal(cycleDevice(DEVICE_ORDER[0], -1), DEVICE_ORDER.at(-1));
+  assert.equal(cycleDevice(DEVICE_ORDER.at(-1), 1), DEVICE_ORDER[0]);
+  assert.equal(cycleDevice("fit", 1), DEVICE_ORDER[0]);
 });

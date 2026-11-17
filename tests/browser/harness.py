@@ -73,6 +73,14 @@ class Harness:
         await page.wait_for_load_state()
         return page
 
+def mirror_frames(popout, host):
+    """Every mirrored page in a view, in the order the devices are shown."""
+    return [
+        f for f in popout.frames
+        if f.url.startswith("http://" + host) or f.url.startswith("https://" + host)
+    ]
+
+
 def mirror_frame(popout, host):
     for f in popout.frames:
         if f.url.startswith("http://" + host) or f.url.startswith("https://" + host):
